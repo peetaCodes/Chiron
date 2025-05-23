@@ -108,7 +108,7 @@ Di seguito un semplice programma scritto in Chiron che mostra i principali eleme
 ----
 # Questo programma calcola il fattoriale di un numero
 
-callable int factorial(int n) {
+callable factorial(int n) -> int {
     if (n <= 1) {
         return 1;
     } else {
@@ -116,7 +116,7 @@ callable int factorial(int n) {
     };
 };
 
-callable void main() {
+callable main() -> void {
     int x = 5;
     int result = factorial(x);
 
@@ -316,7 +316,7 @@ float b = 10.0 / 4;
 
 [source, cpp]
 ----
-if (a > 0 && b != 0) {
+if (a > 0 and b != 0) {
     print("Valori validi");
 }
 ----
@@ -328,8 +328,8 @@ if (a > 0 && b != 0) {
 
 [source, cpp]
 ----
-x = 10;
-x += 5;  # x ora vale 15
+auto x = 10;
+auto x += 5;  # x ora vale 15
 ----
 
 === 4.4 Precedenza e associatività

@@ -720,7 +720,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#579"># Questo</span> programma calcola il fattoriale di un numero
 
-callable <span style="color:#0a8;font-weight:bold">int</span> factorial(<span style="color:#0a8;font-weight:bold">int</span> n) {
+callable factorial(<span style="color:#0a8;font-weight:bold">int</span> n) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
     <span style="color:#080;font-weight:bold">if</span> (n &lt;= <span style="color:#00D">1</span>) {
         <span style="color:#080;font-weight:bold">return</span> <span style="color:#00D">1</span>;
     } <span style="color:#080;font-weight:bold">else</span> {
@@ -728,7 +728,7 @@ callable <span style="color:#0a8;font-weight:bold">int</span> factorial(<span st
     };
 };
 
-callable <span style="color:#088;font-weight:bold">void</span> main() {
+callable main() -&gt; <span style="color:#088;font-weight:bold">void</span> {
     <span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">5</span>;
     <span style="color:#0a8;font-weight:bold">int</span> result = factorial(x);
 
@@ -1099,7 +1099,7 @@ a = <span style="color:#00D">5</span>;
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">if</span> (a &gt; <span style="color:#00D">0</span> &amp;&amp; b != <span style="color:#00D">0</span>) {
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">if</span> (a &gt; <span style="color:#00D">0</span> <span style="color:#080;font-weight:bold">and</span> b != <span style="color:#00D">0</span>) {
     print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Valori validi</span><span style="color:#710">&quot;</span></span>);
 }</code></pre>
 </div>
@@ -1119,8 +1119,8 @@ a = <span style="color:#00D">5</span>;
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp">x = <span style="color:#00D">10</span>;
-x += <span style="color:#00D">5</span>;  <span style="color:#579"># x</span> ora vale <span style="color:#00D">15</span></code></pre>
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">auto</span> x = <span style="color:#00D">10</span>;
+<span style="color:#088;font-weight:bold">auto</span> x += <span style="color:#00D">5</span>;  <span style="color:#579"># x</span> ora vale <span style="color:#00D">15</span></code></pre>
 </div>
 </div>
 </div>
@@ -1940,7 +1940,7 @@ Comandi disponibili:
 <div id="footer">
 <div id="footer-text">
 Version 0.2<br>
-Last updated 2025-05-23 17:49:00 +0200
+Last updated 2025-05-23 18:53:51 +0200
 </div>
 </div>
 <script>
