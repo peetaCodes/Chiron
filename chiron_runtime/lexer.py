@@ -1,67 +1,62 @@
 import re
-from collections import namedtuple
 
-Token = namedtuple('Token', ['type', 'value', 'line', 'column'])
+class Token:
+    def __init__(self, type_, value, line=0, col=0):
+        self.type = type_
+        self.value = value
+        self.line = line
+        self.col = col
+    def __repr__(self):
+        return f"Token({self.type!r}, {self.value!r})"
 
 class Lexer:
     def __init__(self, code):
         self.code = code
-        self.keywords = {
-            'int', 'float', 'bool', 'char', 'str',
-            'array', 'tuple', 'map',
-            'auto', 'const', 'static', 'global', 'local',
-            'true', 'false'
-        }
-
         self.token_specification = [
-            ('NEWLINE',    r'\n'),
-            ('SKIP',       r'[ \t]+'),
-            ('COMMENT',    r'//.*'),
-            ('MLCOMMENT_START', r'//'),
-            ('MLCOMMENT_END',   r'\.//'),
-            ('FLOAT',      r'\d+\.\d+'),
-            ('INT',        r'\d+'),
-            ('CHAR',       r"\'(\\.|[^\\'])\'"),
-            ('STRING',     r'"(\\.|[^\\"])*"'),
-            ('ID',         r'[A-Za-z_][A-Za-z0-9_]*'),
-            ('ASSIGN',     r':\s*=|:=|='),
-            ('END',        r';'),
-            ('OP',         r'[+\-*/]'),
-            ('LPAREN',     r'\('),
-            ('RPAREN',     r'\)'),
-            ('LBRACKET',   r'\['),
-            ('RBRACKET',   r'\]'),
-            ('LBRACE',     r'\{'),
-            ('RBRACE',     r'\}'),
-            ('COMMA',      r','),
+            # Ordine importa: longer first
+            ('INCREMENT', r'\+\+'),
+            ('DECREMENT', r'--'),
+            ('ARROW', r'->'),
+            ('PLUS',      r'\+'),
+            ('MINUS',     r'-'),
+            ('STAR',      r'\*'),
+            ('SLASH',     r'/'),
+            ('PERCENT',   r'%'),
+            ('LPAREN',    r'\('),
+            ('RPAREN',    r'\)'),
+            ('LBRACKET',  r'\['),
+            ('RBRACKET',  r'\]'),
+            ('LBRACE',    r'\{'),
+            ('RBRACE',    r'\}'),
+            ('COMMA',     r','),
+            ('COLON',     r':'),
+            ('SEMICOLON', r';'),
+            ('EQUAL',     r'='),             # assignment and equality
+            ('NUMBER',    r'\d+(\.\d*)?'),
+            ('STRING',    r'"([^"\\]|\\.)*"'),
+            ('CHAR',      r"'([^'\\]|\\.)'"),
+            ('ID',        r'[A-Za-z_][A-Za-z0-9_]*'),
+            ('NEWLINE',   r'\n'),
+            ('SKIP',      r'[ \t]+'),
+            ('MISMATCH',  r'.'),
         ]
-
-        self.master_pat = re.compile('|'.join(f'(?P<{tok}>{regex})' for tok, regex in self.token_specification))
+        self.master_pat = re.compile(
+            '|'.join(f'(?P<{name}>{pat})' for name,pat in self.token_specification)
+        )
 
     def tokenize(self):
-        line_num = 1
-        line_start = 0
-        multiline_comment = False
-
+        line = 1; col = 1
         for mo in self.master_pat.finditer(self.code):
             kind = mo.lastgroup
-            value = mo.group()
-            column = mo.start() - line_start
-
-            if multiline_comment:
-                if kind == 'MLCOMMENT_END':
-                    multiline_comment = False
+            val = mo.group()
+            if kind == 'NEWLINE':
+                line += 1; col = 1
                 continue
-            elif kind == 'MLCOMMENT_START':
-                multiline_comment = True
+            if kind == 'SKIP':
+                col += len(val)
                 continue
-            elif kind == 'NEWLINE':
-                line_start = mo.end()
-                line_num += 1
-                continue
-            elif kind == 'SKIP' or kind == 'COMMENT':
-                continue
-            elif kind == 'ID' and value in self.keywords:
-                kind = value.upper()
-
-            yield Token(kind, value, line_num, column)
+            if kind == 'MISMATCH':
+                raise RuntimeError(f'Unexpected {val!r} at {line}:{col}')
+            token = Token(kind, val, line, col)
+            yield token
+            col += len(val)

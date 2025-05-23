@@ -240,6 +240,7 @@ Chiron supporta i seguenti tipi primitivi:
 - `bool`: booleano (`true`, `false`)
 - `char`: singolo carattere (`'a'`, `'%'`)
 - `str`: sequenza di caratteri (`"ciao"`)
+- `callable`: una funzione
 
 [source, cpp]
 ----
