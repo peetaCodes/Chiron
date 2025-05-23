@@ -718,21 +718,21 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="chy"># Questo programma calcola il fattoriale di un numero
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#579"># Questo</span> programma calcola il fattoriale di un numero
 
-callable int factorial(int n) {
-    if (n &lt;= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
+callable <span style="color:#0a8;font-weight:bold">int</span> factorial(<span style="color:#0a8;font-weight:bold">int</span> n) {
+    <span style="color:#080;font-weight:bold">if</span> (n &lt;= <span style="color:#00D">1</span>) {
+        <span style="color:#080;font-weight:bold">return</span> <span style="color:#00D">1</span>;
+    } <span style="color:#080;font-weight:bold">else</span> {
+        <span style="color:#080;font-weight:bold">return</span> n * factorial(n - <span style="color:#00D">1</span>);
     };
 };
 
-callable void main() {
-    int x = 5;
-    int result = factorial(x);
+callable <span style="color:#088;font-weight:bold">void</span> main() {
+    <span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">5</span>;
+    <span style="color:#0a8;font-weight:bold">int</span> result = factorial(x);
 
-    print(&quot;Il fattoriale di &quot; + x + &quot; è &quot; + result);
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Il fattoriale di </span><span style="color:#710">&quot;</span></span> + x + <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20"> è </span><span style="color:#710">&quot;</span></span> + result);
 };</code></pre>
 </div>
 </div>
@@ -859,33 +859,91 @@ callable void main() {
 </div>
 <div class="sect2">
 <h3 id="_2_2_blocchi_e_indentazione">2.2 Blocchi e indentazione</h3>
-
+<div class="paragraph">
+<p>Chiron utilizza le parentesi graffe <code>{}</code> per delimitare blocchi di codice. Questo approccio, tipico dei linguaggi della famiglia C, garantisce una maggiore chiarezza e riduce il rischio di errori causati da indentazione errata.</p>
+</div>
+<div class="paragraph">
+<p>L&#8217;indentazione è <strong>opzionale</strong> e serve solo a migliorare la leggibilità. Non influenza in alcun modo l&#8217;esecuzione del codice.</p>
+</div>
+<div class="paragraph">
+<p>Esempio:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">if</span> (x &gt; <span style="color:#00D">0</span>) {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Positivo</span><span style="color:#710">&quot;</span></span>);
+} <span style="color:#080;font-weight:bold">else</span> {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Negativo o zero</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_2_3_commenti">2.3 Commenti (<code>#</code>, <code>.//</code>, <code>//</code>)</h3>
-
-</div>
-<div class="sect2">
-<h3 id="_2_4_terminazione_delle_istruzioni">2.4 Terminazione delle istruzioni</h3>
-
-</div>
-<div class="sect2">
-<h3 id="_2_5_simbolo_di_direzione">2.5 Simbolo di direzione <code>:</code></h3>
 <div class="paragraph">
-<p>Il simbolo <code>:</code> viene utilizzato per rendere esplicita la direzione semantica dell’operazione. Ad esempio:</p>
+<p>Chiron supporta tre tipi di commento:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Pre-incremento: <code>++ : i</code>  → incrementa prima di utilizzare</p>
+<p>Commenti monolinea: iniziano con <code>#</code> e terminano a fine riga.</p>
 </li>
 <li>
-<p>Post-incremento: <code>i : ++</code> → utilizza prima di incrementare</p>
+<p>Commenti multilinea: iniziano con <code>//</code> e terminano con <code>.//</code>. Possono estendersi su più righe.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Questa notazione migliora la chiarezza semantica e riduce ambiguità sintattiche rispetto ad altri linguaggi.</p>
+<p>Esempi:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#579"># Questo</span> <span style="color:#F00;background-color:#FAA">è</span> un commento su una riga
+
+<span style="color:#777">// Questo è un commento</span>
+   su pi<span style="color:#F00;background-color:#FAA">ù</span> righe
+   e termina qui.<span style="color:#777">//</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_2_4_terminazione_delle_istruzioni">2.4 Terminazione delle istruzioni</h3>
+<div class="paragraph">
+<p>Ogni istruzione in Chiron deve terminare con un punto e virgola <code>;</code>, come nei linguaggi C-like. Questo consente una sintassi prevedibile e chiara, e semplifica l&#8217;analisi del codice.</p>
+</div>
+<div class="paragraph">
+<p>Esempio:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">10</span>;
+x = x + <span style="color:#00D">1</span>;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_2_5_simbolo_di_direzione">2.5 Simbolo di direzione <code>:</code></h3>
+<div class="paragraph">
+<p>Il simbolo <code>:</code> viene utilizzato per rendere esplicita la <strong>direzione semantica</strong> di un’operazione. Questo approccio evita ambiguità comuni in altri linguaggi.</p>
+</div>
+<div class="paragraph">
+<p>Esempi di utilizzo:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Pre-incremento: <code>++ : i</code> → incrementa <code>i</code>, poi restituisce il valore incrementato.</p>
+</li>
+<li>
+<p>Post-incremento: <code>i : ++</code> → restituisce <code>i</code>, poi lo incrementa.</p>
+</li>
+<li>
+<p>Accesso a funzione: <code>obj : metodo()</code> → chiama <code>metodo()</code> su <code>obj</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Questo meccanismo rende le operazioni più leggibili e gestibili per l&#8217;interprete.</p>
 </div>
 </div>
 </div>
@@ -895,19 +953,92 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_3_1_tipi_primitivi">3.1 Tipi primitivi</h3>
-
+<div class="paragraph">
+<p>Chiron supporta i seguenti tipi primitivi:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>int</code>: intero (es. <code>42</code>)</p>
+</li>
+<li>
+<p><code>float</code>: numero in virgola mobile (es. <code>3.14</code>)</p>
+</li>
+<li>
+<p><code>bool</code>: booleano (<code>true</code>, <code>false</code>)</p>
+</li>
+<li>
+<p><code>char</code>: singolo carattere (<code>'a'</code>, <code>'%'</code>)</p>
+</li>
+<li>
+<p><code>str</code>: sequenza di caratteri (<code>"ciao"</code>)</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">10</span>;
+<span style="color:#0a8;font-weight:bold">float</span> pi = <span style="color:#60E">3</span><span style="color:#60E">.14</span>;
+<span style="color:#0a8;font-weight:bold">bool</span> attivo = <span style="color:#069">true</span>;
+<span style="color:#0a8;font-weight:bold">char</span> iniziale = <span style="color:#D20">'A'</span>;
+str saluto = <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Ciao mondo</span><span style="color:#710">&quot;</span></span>;</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_3_2_tipi_complessi">3.2 Tipi complessi</h3>
-
+<div class="paragraph">
+<p>Tipi complessi predefiniti:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>array&lt;T&gt;</code>: vettore di elementi del tipo <code>T</code></p>
+</li>
+<li>
+<p><code>tuple&lt;T1, T2, &#8230;&#8203;&gt;</code>: tupla con tipi misti</p>
+</li>
+<li>
+<p><code>map&lt;K, V&gt;</code>: dizionario con chiavi di tipo <code>K</code> e valori di tipo <code>V</code></p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">array&lt;<span style="color:#0a8;font-weight:bold">int</span>&gt; numeri = [<span style="color:#00D">1</span>, <span style="color:#00D">2</span>, <span style="color:#00D">3</span>];
+tuple&lt;str, <span style="color:#0a8;font-weight:bold">int</span>&gt; persona = (<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Luca</span><span style="color:#710">&quot;</span></span>, <span style="color:#00D">30</span>);
+map&lt;str, <span style="color:#0a8;font-weight:bold">int</span>&gt; et<span style="color:#F00;background-color:#FAA">à</span> = {<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Luca</span><span style="color:#710">&quot;</span></span>: <span style="color:#00D">30</span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Anna</span><span style="color:#710">&quot;</span></span>: <span style="color:#00D">25</span>};</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_3_3_dichiarazione_e_inizializzazione">3.3 Dichiarazione e inizializzazione</h3>
+<div class="paragraph">
+<p>Le variabili devono essere dichiarate esplicitamente con il loro tipo. L’inizializzazione può avvenire al momento della dichiarazione o in un secondo momento.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> a;
+a = <span style="color:#00D">5</span>;
 
+<span style="color:#0a8;font-weight:bold">float</span> b = <span style="color:#60E">2</span><span style="color:#60E">.5</span>;</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_3_4_conversione_tra_tipi">3.4 Conversione tra tipi</h3>
-
+<div class="paragraph">
+<p>Chiron supporta la conversione esplicita tra tipi compatibili tramite la sintassi:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">float</span> x = <span style="color:#00D">3</span>;
+<span style="color:#0a8;font-weight:bold">int</span> y = (<span style="color:#0a8;font-weight:bold">int</span>) x;  <span style="color:#579"># Conversione</span> esplicita</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Alcune conversioni implicite sono consentite (es. <code>int</code> → <code>float</code>), ma le conversioni che potrebbero comportare perdita di informazione devono essere esplicitate.</p>
+</div>
 </div>
 </div>
 </div>
@@ -916,19 +1047,127 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_4_1_operatori_aritmetici">4.1 Operatori aritmetici</h3>
-
+<div class="ulist">
+<ul>
+<li>
+<p><code>+</code> somma</p>
+</li>
+<li>
+<p><code>-</code> sottrazione</p>
+</li>
+<li>
+<p><code>*</code> moltiplicazione</p>
+</li>
+<li>
+<p><code>/</code> divisione</p>
+</li>
+<li>
+<p><code>%</code> modulo</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> a = <span style="color:#00D">5</span> + <span style="color:#00D">3</span>;
+<span style="color:#0a8;font-weight:bold">float</span> b = <span style="color:#00D">1</span><span style="color:#60E">0</span><span style="color:#60E">.0</span> / <span style="color:#00D">4</span>;</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_4_2_operatori_logici_e_relazionali">4.2 Operatori logici e relazionali</h3>
-
+<div class="ulist">
+<ul>
+<li>
+<p><code>==</code> uguaglianza</p>
+</li>
+<li>
+<p><code>!=</code> disuguaglianza</p>
+</li>
+<li>
+<p><code>&lt;</code>, <code>&#8656;</code>, <code>&gt;</code>, <code>&gt;=</code> confronti</p>
+</li>
+<li>
+<p><code>and</code> AND logico</p>
+</li>
+<li>
+<p><code>or</code> OR logico</p>
+</li>
+<li>
+<p><code>not</code> NOT logico</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">if</span> (a &gt; <span style="color:#00D">0</span> &amp;&amp; b != <span style="color:#00D">0</span>) {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Valori validi</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_4_3_operatori_di_assegnazione">4.3 Operatori di assegnazione</h3>
-
+<div class="ulist">
+<ul>
+<li>
+<p><code>=</code> assegnazione semplice</p>
+</li>
+<li>
+<p><code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code> assegnazioni combinate</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">x = <span style="color:#00D">10</span>;
+x += <span style="color:#00D">5</span>;  <span style="color:#579"># x</span> ora vale <span style="color:#00D">15</span></code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_4_4_precedenza_e_associatività">4.4 Precedenza e associatività</h3>
-
+<div class="paragraph">
+<p>Chiron segue la precedenza classica dei linguaggi C-like. Gli operatori tra parentesi hanno la precedenza più alta. È sempre consigliato l’uso esplicito delle parentesi per evitare ambiguità.</p>
+</div>
+<div class="paragraph">
+<p>Ordine di precedenza (dal più alto al più basso):</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>()</code> (parentesi)</p>
+</li>
+<li>
+<p><code>++</code>, <code>--</code> (<em>consigliato</em> l&#8217;uso con ':')</p>
+</li>
+<li>
+<p><code>*</code>, <code>/</code>, <code>%</code></p>
+</li>
+<li>
+<p><code>+</code>, <code>-</code></p>
+</li>
+<li>
+<p>Relazionali (<code>&lt;</code>, <code>&gt;</code>, <code>&#8656;</code>, <code>&gt;=</code>)</p>
+</li>
+<li>
+<p>Uguaglianza (<code>==</code>, <code>!=</code>)</p>
+</li>
+<li>
+<p><code>&amp;&amp;</code></p>
+</li>
+<li>
+<p><code>||</code></p>
+</li>
+<li>
+<p><code>=</code>, <code>+=</code>, ecc.</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> risultato = (a + b) * c;</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -937,15 +1176,77 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_5_1_condizionali_if_else_if_else">5.1 Condizionali: <code>if</code>, <code>else if</code>, <code>else</code></h3>
-
+<div class="paragraph">
+<p>Chiron utilizza la classica struttura condizionale, simile ai linguaggi C-like. Ogni blocco deve essere delimitato da parentesi graffe <code>{}</code>. Le condizioni devono essere esplicitamente booleane.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">if</span> (x &gt; <span style="color:#00D">0</span>) {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Positivo</span><span style="color:#710">&quot;</span></span>);
+} <span style="color:#080;font-weight:bold">else</span> <span style="color:#080;font-weight:bold">if</span> (x == <span style="color:#00D">0</span>) {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Zero</span><span style="color:#710">&quot;</span></span>);
+} <span style="color:#080;font-weight:bold">else</span> {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Negativo</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_5_2_cicli_while_for">5.2 Cicli: <code>while</code>, <code>for</code></h3>
-
+<div class="sect3">
+<h4 id="_ciclo_while">Ciclo <code>while</code></h4>
+<div class="paragraph">
+<p>Il ciclo <code>while</code> ripete il blocco finché la condizione è vera.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> i = <span style="color:#00D">0</span>;
+<span style="color:#080;font-weight:bold">while</span> (i &lt; <span style="color:#00D">5</span>) {
+    print(i);
+    i : ++;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ciclo_for">Ciclo <code>for</code></h4>
+<div class="paragraph">
+<p>Il ciclo <code>for</code> segue la struttura classica con dichiarazione, condizione e incremento.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">for</span> (<span style="color:#0a8;font-weight:bold">int</span> i = <span style="color:#00D">0</span>; i &lt; <span style="color:#00D">5</span>; i : ++) {
+    print(i);
+}</code></pre>
+</div>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_5_3_interruzioni_di_flusso_break_continue">5.3 Interruzioni di flusso: <code>break</code>, <code>continue</code></h3>
-
+<div class="ulist">
+<ul>
+<li>
+<p><code>break</code> termina immediatamente il ciclo più interno.</p>
+</li>
+<li>
+<p><code>continue</code> salta all’iterazione successiva del ciclo.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">for</span> (<span style="color:#0a8;font-weight:bold">int</span> i = <span style="color:#00D">0</span>; i &lt; <span style="color:#00D">10</span>; i : ++) {
+    <span style="color:#080;font-weight:bold">if</span> (i == <span style="color:#00D">5</span>) {
+        <span style="color:#080;font-weight:bold">continue</span>;  <span style="color:#579"># Salta</span> il <span style="color:#00D">5</span>
+    }
+    <span style="color:#080;font-weight:bold">if</span> (i == <span style="color:#00D">8</span>) {
+        <span style="color:#080;font-weight:bold">break</span>;     <span style="color:#579"># Interrompe</span> il ciclo a <span style="color:#00D">8</span>
+    }
+    print(i);
+}</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -954,19 +1255,80 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_6_1_dichiarazione_e_sintassi_base_callable">6.1 Dichiarazione e sintassi base (<code>callable</code>)</h3>
-
+<div class="paragraph">
+<p>Le funzioni in Chiron si dichiarano usando il costrutto <code>callable</code>, seguito dal nome, dai parametri tipizzati e dal tipo di ritorno. Il corpo della funzione è racchiuso tra parentesi graffe.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">callable somma(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+    <span style="color:#080;font-weight:bold">return</span> a + b;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Le funzioni possono essere dichiarate a livello globale o all’interno di classi.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_6_2_tipi_di_ritorno">6.2 Tipi di ritorno</h3>
-
+<div class="paragraph">
+<p>Il tipo di ritorno deve essere specificato esplicitamente dopo il simbolo <code>&#8594;</code>. Per funzioni che non restituiscono valori, si utilizza <code>void</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">callable stampaMessaggio() -&gt; <span style="color:#088;font-weight:bold">void</span> {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Benvenuto in Chiron!</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Una funzione può restituire qualunque tipo, anche strutture complesse o classi.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_6_3_parametri_opzionali_e_default">6.3 Parametri opzionali e default</h3>
-
+<div class="paragraph">
+<p>Chiron supporta parametri opzionali, definiti con un valore di default.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">callable saluta(str nome = <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Utente</span><span style="color:#710">&quot;</span></span>) -&gt; <span style="color:#088;font-weight:bold">void</span> {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Ciao, </span><span style="color:#710">&quot;</span></span> + nome + <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">!</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Questa funzione può essere invocata con o senza argomenti.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">saluta();           <span style="color:#579"># Output</span>: Ciao, Utente!
+saluta(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Alice</span><span style="color:#710">&quot;</span></span>);    <span style="color:#579"># Output</span>: Ciao, Alice!</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_6_4_funzioni_come_variabili">6.4 Funzioni come variabili</h3>
+<div class="paragraph">
+<p>Il costrutto <code>callable</code> visto in precedenza non è li a caso: infatti in chiron le funzioni non sono nient&#8217;altro che variabili. In particolare le funzioni vengono salvate come stringhe multi-linea costanti (<code>const str</code>)</p>
+</div>
+<div class="paragraph">
+<p>Di conseguenza concetti come <em>puntatori a funzione</em> non esistono in quanto concettualmente si sta lavorando con stringhe</p>
+</div>
+<div class="listingblock">
+<div class="title">Assegnazione di funzione</div>
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">callable moltiplica(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+    <span style="color:#080;font-weight:bold">return</span> a * b;
+}
 
+callable operazione = moltiplica;
+print( operazione(<span style="color:#00D">3</span>, <span style="color:#00D">4</span>) );  <span style="color:#579"># Output</span>: <span style="color:#00D">12</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Questa caratteristica abilita l’uso di funzioni di ordine superiore e apre la strada alla programmazione funzionale.</p>
+</div>
 </div>
 </div>
 </div>
@@ -975,19 +1337,99 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_7_1_dichiarazione_di_classi">7.1 Dichiarazione di classi</h3>
+<div class="paragraph">
+<p>Le classi in Chiron sono definite con la parola chiave <code>class</code>, seguita dal nome della classe. Il corpo della classe è racchiuso tra parentesi graffe e può contenere attributi, metodi e costruttori.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">Punto</span> {
+    <span style="color:#0a8;font-weight:bold">int</span> x;
+    <span style="color:#0a8;font-weight:bold">int</span> y;
 
+    callable Punto(<span style="color:#0a8;font-weight:bold">int</span> x, <span style="color:#0a8;font-weight:bold">int</span> y) -&gt; <span style="color:#088;font-weight:bold">void</span> {
+        <span style="color:#950">this</span>.x = x;
+        <span style="color:#950">this</span>.y = y;
+    }
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_7_2_attributi_metodi_e_costruttore">7.2 Attributi, metodi e costruttore</h3>
+<div class="paragraph">
+<p>Gli attributi sono variabili tipizzate dichiarate direttamente all’interno della classe. I metodi sono funzioni che operano sull’istanza corrente. Il costruttore ha lo stesso nome della classe e non ha tipo di ritorno.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">Rettangolo</span> {
+    <span style="color:#0a8;font-weight:bold">int</span> base;
+    <span style="color:#0a8;font-weight:bold">int</span> altezza;
 
+    callable Rettangolo(<span style="color:#0a8;font-weight:bold">int</span> b, <span style="color:#0a8;font-weight:bold">int</span> h) -&gt; <span style="color:#088;font-weight:bold">void</span> {
+        <span style="color:#950">this</span>.base = b;
+        <span style="color:#950">this</span>.altezza = h;
+    }
+
+    callable area() -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+        <span style="color:#080;font-weight:bold">return</span> base * altezza;
+    }
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_7_3_this_e_visibilità_interna">7.3 <code>this</code> e visibilità interna</h3>
-
+<div class="paragraph">
+<p>La parola chiave <code>this</code> è utilizzata per riferirsi all’istanza corrente dell’oggetto, ed è obbligatoria quando c’è ambiguità tra parametri e attributi.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#950">this</span>.base = base;  <span style="color:#579"># disambiguazione</span> tra parametro e attributo</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In futuro potranno essere introdotti modificatori di visibilità (<code>private</code>, <code>protected</code>, <code>public</code>), ma attualmente tutte le proprietà sono accessibili.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_7_4_ereditarietà_e_overloading">7.4 Ereditarietà e overloading</h3>
+<div class="paragraph">
+<p>Chiron supporta l’ereditarietà semplice tramite la sintassi <code>: nomeClassePadre</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">Figura</span> {
+    callable tipo() -&gt; str {
+        <span style="color:#080;font-weight:bold">return</span> <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Figura generica</span><span style="color:#710">&quot;</span></span>;
+    }
+}
 
+<span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">Cerchio</span> : Figura {
+    callable tipo() -&gt; str {
+        <span style="color:#080;font-weight:bold">return</span> <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Cerchio</span><span style="color:#710">&quot;</span></span>;
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Il metodo <code>tipo()</code> è ridefinito nella sottoclasse (<code>overriding</code>). Chiron consente anche l’overloading, cioè la definizione di più metodi con lo stesso nome ma parametri diversi.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">Operazioni</span> {
+    callable somma(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+        <span style="color:#080;font-weight:bold">return</span> a + b;
+    }
+
+    callable somma(<span style="color:#0a8;font-weight:bold">float</span> a, <span style="color:#0a8;font-weight:bold">float</span> b) -&gt; <span style="color:#0a8;font-weight:bold">float</span> {
+        <span style="color:#080;font-weight:bold">return</span> a + b;
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>L’overloading si basa sulle firme delle funzioni (tipi e numero di parametri).</p>
+</div>
 </div>
 </div>
 </div>
@@ -996,15 +1438,72 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_8_1_regole_di_visibilità_global_static_const">8.1 Regole di visibilità (<code>global</code>, <code>static</code>, <code>const</code>)</h3>
-
+<div class="paragraph">
+<p>In Chiron, la visibilità e il comportamento delle variabili possono essere controllati con modificatori espliciti:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>global</code>: indica che la variabile è definita nello scope globale ed è accessibile da qualsiasi punto del programma.</p>
+</li>
+<li>
+<p><code>static</code>: la variabile o funzione mantiene il suo valore tra le invocazioni e non viene ricreata ad ogni esecuzione.</p>
+</li>
+<li>
+<p><code>const</code>: definisce una costante il cui valore non può essere modificato dopo l’inizializzazione.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">global <span style="color:#0a8;font-weight:bold">int</span> MAX_UTENTI = <span style="color:#00D">100</span>;
+<span style="color:#088;font-weight:bold">const</span> <span style="color:#0a8;font-weight:bold">float</span> PI = <span style="color:#60E">3</span><span style="color:#60E">.1416</span>;
+<span style="color:#088;font-weight:bold">static</span> <span style="color:#0a8;font-weight:bold">int</span> contatore = <span style="color:#00D">0</span>;</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_8_2_scope_locale_e_globale">8.2 Scope locale e globale</h3>
+<div class="paragraph">
+<p>Chiron distingue in modo chiaro tra variabili locali (dichiarate all&#8217;interno di funzioni o blocchi) e globali (dichiarate all&#8217;esterno). Le variabili locali nascondono quelle globali con lo stesso nome.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">10</span>;
 
+callable esempio() -&gt; <span style="color:#088;font-weight:bold">void</span> {
+    <span style="color:#0a8;font-weight:bold">int</span> x = <span style="color:#00D">5</span>;       <span style="color:#579"># nasconde</span> la variabile globale
+    print(x);        <span style="color:#579"># stampa</span>: <span style="color:#00D">5</span>
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Per accedere alla variabile globale <code>x</code> in questo contesto, si usa la parola chiave <code>global</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">callable esempio2() -&gt; <span style="color:#088;font-weight:bold">void</span> {
+    global x;
+    print(x);        <span style="color:#579"># stampa</span>: <span style="color:#00D">10</span>
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_8_3_shadowing_e_gestione_dei_conflitti">8.3 Shadowing e gestione dei conflitti</h3>
+<div class="paragraph">
+<p>Chiron permette lo shadowing, ma emette un warning in fase di compilazione se una variabile locale ombreggia un’identica variabile globale. È consigliato evitare nomi duplicati per chiarezza semantica.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#0a8;font-weight:bold">int</span> valore = <span style="color:#00D">50</span>;
 
+callable stampa() -&gt; <span style="color:#088;font-weight:bold">void</span> {
+    <span style="color:#0a8;font-weight:bold">int</span> valore = <span style="color:#00D">20</span>;  <span style="color:#579"># warning</span>: <span style="color:#D20">'v</span>alore<span style="color:#D20">' </span>ombreggia variabile globale
+    print(valore);    <span style="color:#579"># stampa</span>: <span style="color:#00D">20</span>
+}</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -1013,15 +1512,80 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_9_1_sintassi_try_except_finally">9.1 Sintassi: <code>try</code>, <code>except</code>, <code>finally</code></h3>
-
+<div class="paragraph">
+<p>Chiron fornisce un meccanismo robusto per la gestione delle eccezioni. Il blocco <code>try</code> racchiude il codice potenzialmente fallibile, seguito da uno o più blocchi <code>except</code>, e un opzionale blocco <code>finally</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">try</span> {
+    <span style="color:#0a8;font-weight:bold">int</span> x = div(<span style="color:#00D">10</span>, <span style="color:#00D">0</span>);
+}
+except ZeroDivisionError as e {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Errore: divisione per zero</span><span style="color:#710">&quot;</span></span>);
+}
+finally {
+    print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Operazione terminata</span><span style="color:#710">&quot;</span></span>);
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_9_2_tipi_di_eccezioni">9.2 Tipi di eccezioni</h3>
+<div class="paragraph">
+<p>Le eccezioni sono oggetti di tipo specifico. Chiron prevede eccezioni di base come:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>ZeroDivisionError</code></p>
+</li>
+<li>
+<p><code>ValueError</code></p>
+</li>
+<li>
+<p><code>IndexError</code></p>
+</li>
+<li>
+<p><code>FileNotFoundError</code></p>
+</li>
+<li>
+<p><code>GenericError</code> (per casi generici)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Le eccezioni possono essere personalizzate creando classi che ereditano da <code>Exception</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#080;font-weight:bold">class</span> <span style="color:#B06;font-weight:bold">ErroreLogin</span> : Exception {
+    str motivo;
 
+    callable ErroreLogin(str m) -&gt; <span style="color:#088;font-weight:bold">void</span> {
+        <span style="color:#950">this</span>.motivo = m;
+    }
+}</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_9_3_generazione_di_errori_raise">9.3 Generazione di errori (<code>raise</code>)</h3>
-
+<div class="paragraph">
+<p>Per sollevare un’eccezione si utilizza la parola chiave <code>raise</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">static</span> callable div(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+    <span style="color:#080;font-weight:bold">if</span> b == <span style="color:#00D">0</span> {
+        raise ZeroDivisionError(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Divisione per zero</span><span style="color:#710">&quot;</span></span>);
+    }
+    <span style="color:#080;font-weight:bold">return</span> a / b;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Le eccezioni non gestite causano la terminazione del programma, mostrando un traceback sintetico.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1030,15 +1594,95 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_10_1_struttura_dei_file_chy">10.1 Struttura dei file <code>.chy</code></h3>
+<div class="paragraph">
+<p>I programmi Chiron sono scritti in file con estensione <code>.chy</code>. Ogni file può contenere dichiarazioni di funzioni, classi e costanti, ed è trattato come un modulo.</p>
+</div>
+<div class="paragraph">
+<p>La struttura tipica di un file <code>.chy</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#579"># Questo</span> <span style="color:#F00;background-color:#FAA">è</span> un file chiamato <span style="color:#D20">'u</span>til.chy<span style="color:#D20">'</span>
 
+<span style="color:#088;font-weight:bold">static</span> callable somma(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b) -&gt; <span style="color:#0a8;font-weight:bold">int</span> {
+    <span style="color:#080;font-weight:bold">return</span> a + b;
+}
+
+<span style="color:#088;font-weight:bold">const</span> <span style="color:#0a8;font-weight:bold">int</span> VERSIONE = <span style="color:#00D">1</span>;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>I file <code>.chy</code> possono essere importati in altri script, rendendo disponibili le entità dichiarate.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_10_2_importazione_dei_moduli">10.2 Importazione dei moduli</h3>
+<div class="paragraph">
+<p>Per importare un modulo, si usa la parola chiave <code>import</code>. Il nome del file (senza estensione <code>.chy</code>) è usato come nome del modulo.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">import util;
 
+<span style="color:#0a8;font-weight:bold">int</span> risultato = util : somma(<span style="color:#00D">4</span>, <span style="color:#00D">5</span>);
+print(risultato);  <span style="color:#579"># stampa</span>: <span style="color:#00D">9</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>È possibile rinominare un modulo al momento dell’importazione con <code>as</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">import util as u;
+
+print(u : VERSIONE);  <span style="color:#579"># stampa</span>: <span style="color:#00D">1</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>L’importazione avviene in fase di esecuzione e si basa sul percorso relativo del file. I moduli devono trovarsi nella stessa directory o in una delle directory specificate nel path di Chiron.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_10_3_libreria_standard_prevista">10.3 Libreria standard prevista</h3>
+<div class="paragraph">
+<p>La libreria standard di Chiron fornisce moduli integrati che facilitano operazioni comuni. I moduli più importanti includono:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>std.io</code> – Input/output (es. <code>print</code>, <code>input</code>)</p>
+</li>
+<li>
+<p><code>std.math</code> – Funzioni matematiche comuni (<code>abs</code>, <code>sqrt</code>, <code>pow</code>)</p>
+</li>
+<li>
+<p><code>std.fs</code> – Gestione file (lettura, scrittura) e formati comuni come JSON, SQL etc.</p>
+</li>
+<li>
+<p><code>std.str</code> – Manipolazione di stringhe</p>
+</li>
+<li>
+<p><code>std.time</code> – Gestione del tempo e delle date</p>
+</li>
+<li>
+<p><code>std.sys</code> – Informazioni e comandi di sistema</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Esempio di utilizzo di una funzione dalla libreria standard:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">import std.math;
 
+<span style="color:#0a8;font-weight:bold">float</span> radice = std.math : sqrt(<span style="color:#00D">1</span><span style="color:#60E">6</span><span style="color:#60E">.0</span>);
+print(radice);  <span style="color:#579"># stampa</span>: <span style="color:#60E">4</span><span style="color:#60E">.0</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>La libreria standard di Chiron è progettata per essere minimale ma estendibile. Nuovi moduli possono essere installati e importati come qualsiasi altro file <code>.chy</code>.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1047,11 +1691,103 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_11_1_funzioni_di_io_standard_print_input">11.1 Funzioni di I/O standard: <code>print</code>, <code>input</code></h3>
-
+<div class="paragraph">
+<p>Chiron fornisce funzioni integrate per l&#8217;interazione con l&#8217;utente tramite console.</p>
+</div>
+<div class="sect3">
+<h4 id="_print"><code>print(&#8230;&#8203;)</code></h4>
+<div class="paragraph">
+<p>Stampa uno o più valori sulla console, separati da uno spazio.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Hello, World!</span><span style="color:#710">&quot;</span></span>);
+print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Valore:</span><span style="color:#710">&quot;</span></span>, <span style="color:#00D">42</span>, <span style="color:#069">true</span>);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Supporta tipi primitivi e stringhe, e converte automaticamente i tipi in formato testuale.</strong></p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_inputprompt_str_str"><code>input(prompt: str) &#8594; str</code></h4>
+<div class="paragraph">
+<p>Legge una riga da input utente e la restituisce come stringa.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">str nome = input(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Inserisci il tuo nome: </span><span style="color:#710">&quot;</span></span>);
+print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Benvenuto</span><span style="color:#710">&quot;</span></span>, nome);</code></pre>
+</div>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_11_2_gestione_dei_file_lettura_scrittura_apertura">11.2 Gestione dei file: lettura, scrittura, apertura</h3>
+<div class="paragraph">
+<p>Chiron supporta la gestione dei file tramite l&#8217;interfaccia <code>file</code>, presente nel modulo <code>std.fs</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">import std.fs;
 
+file f = std.fs : open(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">dati.txt</span><span style="color:#710">&quot;</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">w</span><span style="color:#710">&quot;</span></span>);
+f : write(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Linea 1</span><span style="color:#b0b">\n</span><span style="color:#710">&quot;</span></span>);
+f : close();</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Modalità di apertura</strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>"r"</code> – Lettura (il file deve esistere)</p>
+</li>
+<li>
+<p><code>"w"</code> – Scrittura (sovrascrive se esiste)</p>
+</li>
+<li>
+<p><code>"a"</code> – Aggiunta (scrive in fondo al file)</p>
+</li>
+<li>
+<p><code>"rw"</code> – Lettura e scrittura</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Per ognuno di questi sistemi esiste le varianti più comuni come 'b' per lettura di tipo bytes (esempio 'rb' per lettura dei bytes si un file)</p>
+</div>
+<div class="paragraph">
+<p><strong>Metodi disponibili su oggetti <code>file</code></strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>write(str data)</code> – Scrive nel file</p>
+</li>
+<li>
+<p><code>read() &#8594; str</code> – Legge l&#8217;intero contenuto</p>
+</li>
+<li>
+<p><code>readline() &#8594; str</code> – Legge una singola linea</p>
+</li>
+<li>
+<p><code>close()</code> – Chiude il file</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Esempio di lettura:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">file f = std.fs : open(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">dati.txt</span><span style="color:#710">&quot;</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">r</span><span style="color:#710">&quot;</span></span>);
+str contenuto = f : read();
+print(contenuto);
+f : close();</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -1060,15 +1796,81 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_12_1_esecuzione_di_uno_script_chy">12.1 Esecuzione di uno script <code>.chy</code></h3>
-
+<div class="paragraph">
+<p>Gli script <code>.chy</code> sono eseguiti da un interprete Chiron. Si possono eseguire dalla riga di comando:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>$ chiron mio_script.chy</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>È possibile passare argomenti al programma tramite <code>args</code>, una lista disponibile nel contesto globale.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp">print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Numero di argomenti:</span><span style="color:#710">&quot;</span></span>, args : size());</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_12_2_prompt_interattivo">12.2 Prompt interattivo <code>&gt;</code></h3>
-
+<div class="paragraph">
+<p>Chiron include un REPL (Read-Eval-Print Loop), accessibile semplicemente eseguendo:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>$ chiron</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Nel REPL, ogni riga viene interpretata ed eseguita immediatamente.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code>&gt; int x = 10;
+&gt; x : ++;
+&gt; print(x);
+11</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Il prompt supporta comandi speciali e sintassi multilinea.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_12_3_comandi_speciali_es_exit_help">12.3 Comandi speciali (es. <code>.exit</code>, <code>.help</code>)</h3>
-
+<div class="paragraph">
+<p>Nel prompt interattivo sono disponibili comandi speciali:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>.exit</code> – Chiude il REPL</p>
+</li>
+<li>
+<p><code>.help</code> – Mostra la guida in linea</p>
+</li>
+<li>
+<p><code>.clear</code> – Pulisce la schermata</p>
+</li>
+<li>
+<p><code>.env</code> – Mostra le variabili definite</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code>&gt; .help
+Comandi disponibili:
+  .exit    → Esce dal prompt
+  .help    → Mostra questo messaggio
+  .env     → Elenca variabili e moduli caricati</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Il REPL è pensato per esperimenti rapidi, test e apprendimento interattivo.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1077,15 +1879,60 @@ callable void main() {
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_13_1_lambda_e_funzioni_anonime">13.1 Lambda e funzioni anonime</h3>
-
+<div class="paragraph">
+<p>Chiron prevede di integrare nel prossimo futuro il supporto a funzioni anonime (lambda), per migliorare la concisione e la flessibilità del codice. Le lambda permetteranno di definire funzioni inline, senza dover creare dichiarazioni formali, facilitando la programmazione funzionale e la scrittura di callback o funzioni di ordine superiore.</p>
+</div>
+<div class="paragraph">
+<p>Sintassi proposta:</p>
+</div>
+<div class="paragraph">
+<p><code>lambda (parametri) : espressione</code></p>
+</div>
+<div class="paragraph">
+<p>Esempio</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">auto</span> somma = lambda (a, b) : a + b;</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_13_2_meta_programmazione">13.2 Meta-programmazione</h3>
-
+<div class="paragraph">
+<p>Una delle direzioni evolutive di Chiron riguarda la meta-programmazione, cioè la possibilità di scrivere codice che genera o manipola altro codice a tempo di compilazione o esecuzione.</p>
+</div>
+<div class="paragraph">
+<p>Questo permetterà di introdurre macro più potenti e generiche, sistemi di riflessione limitati e template evoluti, con l’obiettivo di mantenere però la semplicità e la chiarezza del linguaggio.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_13_3_supporto_a_modelli_funzionali_o_concorrenti">13.3 Supporto a modelli funzionali o concorrenti</h3>
-
+<div class="paragraph">
+<p>Chiron intende esplorare in futuro modelli di programmazione funzionale e concorrente, per adattarsi alle esigenze moderne.</p>
+</div>
+<div class="paragraph">
+<p>In particolare, si valutano:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Introduzione di tipi immutabili e funzioni pure</p>
+</li>
+<li>
+<p>Costrutti per la gestione della concorrenza (thread, async/await)</p>
+</li>
+<li>
+<p>Sistemi di sincronizzazione semplificati</p>
+</li>
+<li>
+<p>Meccanismi per la gestione della concorrenza basata su messaggi o attori</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>L’obiettivo è fornire strumenti efficaci per la scrittura di software moderno, mantenendo il bilanciamento con la semplicità e leggibilità che caratterizza Chiron.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1093,7 +1940,7 @@ callable void main() {
 <div id="footer">
 <div id="footer-text">
 Version 0.2<br>
-Last updated 2025-05-23 13:17:51 +0200
+Last updated 2025-05-23 17:49:00 +0200
 </div>
 </div>
 <script>
