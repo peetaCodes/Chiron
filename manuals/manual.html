@@ -768,7 +768,11 @@ callable main() -&gt; <span style="color:#088;font-weight:bold">void</span> {
 </ul>
 </div>
 <div class="paragraph">
-<p>Il programma segue uno stile fortemente leggibile, ispirato alla chiarezza di Python ma con la struttura e la disciplina tipica di C++. Il costrutto <code>callable void main()</code> rappresenta il punto di ingresso di ogni programma Chiron.</p>
+<p>Il programma segue uno stile fortemente leggibile, ispirato alla chiarezza di Python ma con la struttura e la disciplina tipica di C++. Il costrutto <code>callable void main()</code> rappresenta il punto di ingresso di ogni programma Chiron.
+Esso è però opzionale: nel caso di assenza dell&#8217;entry point 'main()' l&#8217;interprete inizierà ad eseguire il codice <em>'globale'</em>, come in python.</p>
+</div>
+<div class="paragraph">
+<p>In caso la funzione 'main()' sia però presente, tutto quanto il codice 'globale' sarà ignorato.</p>
 </div>
 </div>
 </div>
@@ -1943,7 +1947,7 @@ Comandi disponibili:
 <div id="footer">
 <div id="footer-text">
 Version 0.2<br>
-Last updated 2025-05-23 21:12:15 +0200
+Last updated 2025-05-23 23:46:09 +0200
 </div>
 </div>
 <script>

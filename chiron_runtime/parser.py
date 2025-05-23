@@ -5,12 +5,10 @@ class SyntaxError(Exception):
 
 class Parser:
     def __init__(self, tokens):
-        # tokens è una lista di Token
         self.tokens = list(tokens)
         self.pos = 0
 
     def current(self):
-        # Torna un Token: o quello corrente, o EOF
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return Token('EOF', '')
@@ -39,22 +37,27 @@ class Parser:
         return stmts
 
     def parse_statement(self):
+        if self.current().type == 'ID' and self.current().value == 'return':
+            self.advance()
+            expr = None
+            if self.current().type != 'SEMICOLON':
+                expr = self.parse_expression()
+            self.expect('SEMICOLON')
+            return {'type': 'return', 'expression': expr}
+
         mods = []
-        while self.current().type == 'ID' and self.current().value in ('const', 'static', 'global', 'local', 'auto'):
+        while self.current().type == 'ID' and self.current().value in ('const', 'static', 'global', 'local'):
             mods.append(self.current().value)
             self.advance()
 
-        # Tipo (può essere 'callable' oppure altri)
+        # ——— Tipo (può essere auto, callable o un tipo primitivo) ———
         typ_tok = self.expect('ID')
         var_type = typ_tok.value
 
-        # Nome variabile
         name_tok = self.expect('ID')
         name = name_tok.value
 
-        # Se il tipo è callable, supporta la sintassi: callable nome(parametri) to tipo_ritorno;
         if var_type == 'callable':
-            # parentesi parametri
             self.expect('LPAREN')
             params = []
             while self.current().type != 'RPAREN':
@@ -69,52 +72,38 @@ class Parser:
                     break
             self.expect('RPAREN')
 
-            # Aspetta il token ARROW '->' invece di 'to'
             self.expect('ARROW')
-
             return_type_tok = self.expect('ID')
             return_type = return_type_tok.value
 
             if self.current().type == 'LBRACE':
-                self.expect('LBRACE')  # Consuma la '{' di apertura
+                self.expect('LBRACE')
                 brace_count = 1
                 body_tokens = []
-
                 while brace_count > 0:
                     tok = self.current()
                     if tok.type == 'EOF':
                         raise SyntaxError("Unexpected EOF while parsing function body")
-
                     if tok.type == 'LBRACE':
                         brace_count += 1
                     elif tok.type == 'RBRACE':
                         brace_count -= 1
-
                     if brace_count > 0:
                         body_tokens.append(tok)
-
                     self.advance()
-                # Corpo parsato in body_tokens (puoi usarlo per un parsing più approfondito)
-
-                # Dopo la parentesi graffa chiusa ci deve essere SEMICOLON
                 if not self.match('SEMICOLON'):
                     raise SyntaxError("Expected ';' after callable function body")
-                self.advance()
-
                 return {
                     'type': 'declaration_callable',
                     'modifiers': mods,
                     'name': name,
                     'params': params,
                     'return_type': return_type,
-                    'body': body_tokens  # o un AST se parser lo crea
+                    'body': Parser(body_tokens).parse() if body_tokens else []
                 }
             else:
-                # Solo dichiarazione (nessun corpo)
                 if not self.match('SEMICOLON'):
                     raise SyntaxError("Expected ';' after callable declaration")
-                self.advance()
-
                 return {
                     'type': 'declaration_callable',
                     'modifiers': mods,
@@ -123,10 +112,8 @@ class Parser:
                     'return_type': return_type,
                     'body': None
                 }
-
         else:
-            # Altri tipi: dichiarazione variabile standard
-            # supporto ":=" o "="
+            # Dichiarazione variabile o assegnamento
             if self.match('COLON'):
                 self.expect('EQUAL')
             else:
@@ -136,7 +123,6 @@ class Parser:
 
             if not self.match('SEMICOLON'):
                 raise SyntaxError("Expected ';' after statement")
-            self.advance()
 
             return {
                 'type': 'declaration',
@@ -146,7 +132,7 @@ class Parser:
                 'value': value
             }
 
-    # ——— Expression grammar ———
+    # Expression grammar:
 
     def parse_expression(self):
         return self.parse_add_sub()
@@ -181,7 +167,6 @@ class Parser:
         return node
 
     def parse_unary(self):
-        # prefisso ++: x
         if self.match('INCREMENT'):
             self.expect('COLON')
             expr = self.parse_unary()
@@ -193,7 +178,6 @@ class Parser:
 
         node = self.parse_primary()
 
-        # postfisso x : ++
         if self.match('COLON'):
             if self.match('INCREMENT'):
                 return {'type':'unary_op','op':'++_post','expr':node}
@@ -221,7 +205,22 @@ class Parser:
 
         if tok.type == 'ID':
             self.advance()
-            return {'type':'variable','name':tok.value}
+            if self.current().type == 'LPAREN':
+                self.advance()
+                args = []
+                while self.current().type != 'RPAREN':
+                    args.append(self.parse_expression())
+                    if self.current().type == 'COMMA':
+                        self.advance()
+                    else:
+                        break
+                self.expect('RPAREN')
+                return {
+                    'type': 'call_callable',
+                    'name': tok.value,
+                    'args': args
+                }
+            return {'type':'identifier','name':tok.value}
 
         if tok.type == 'LPAREN':
             self.advance()
@@ -229,31 +228,4 @@ class Parser:
             self.expect('RPAREN')
             return expr
 
-        if tok.type == 'LBRACKET':
-            self.advance()
-            elems = []
-            while self.current().type != 'RBRACKET':
-                elems.append(self.parse_expression())
-                if self.current().type == 'COMMA':
-                    self.advance()
-                else:
-                    break
-            self.expect('RBRACKET')
-            return {'type':'array','elements':elems}
-
-        if tok.type == 'LBRACE':
-            self.advance()
-            pairs = []
-            while self.current().type != 'RBRACE':
-                key = self.parse_expression()
-                self.expect('COLON')
-                val = self.parse_expression()
-                pairs.append((key,val))
-                if self.current().type == 'COMMA':
-                    self.advance()
-                else:
-                    break
-            self.expect('RBRACE')
-            return {'type':'map','pairs':pairs}
-
-        raise SyntaxError(f"Unexpected token {tok} in primary")
+        raise SyntaxError(f"Unexpected token {tok} in expression")

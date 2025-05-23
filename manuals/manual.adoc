@@ -136,6 +136,9 @@ Analisi degli elementi utilizzati:
 * Nessuna istruzione implicita: ogni azione deve essere espressa in modo esplicito.
 
 Il programma segue uno stile fortemente leggibile, ispirato alla chiarezza di Python ma con la struttura e la disciplina tipica di C++. Il costrutto `callable void main()` rappresenta il punto di ingresso di ogni programma Chiron.
+Esso è però opzionale: nel caso di assenza dell'entry point 'main()' l'interprete inizierà ad eseguire il codice _'globale'_, come in python.
+
+In caso la funzione 'main()' sia però presente, tutto quanto il codice 'globale' sarà ignorato.
 
 == 2. Sintassi di base
 
