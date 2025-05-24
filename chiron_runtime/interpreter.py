@@ -39,6 +39,10 @@ class Environment:
         else:
             raise RuntimeError(f"Function '{name}' not defined")
 
+class ReturnSignal(Exception):
+    def __init__(self, value):
+        self.value = value
+
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
@@ -68,6 +72,14 @@ class Interpreter:
 
         self.dump_env()
 
+    def safe_execute(self, node, env):
+        try:
+            return self.exec_statement(node, env)
+        except Exception as e:
+            line = node.get('line', '?')
+            col = node.get('col', '?')
+            raise RuntimeError(f"ChironError at line {line}, col {col}: {e}")
+
     def exec_statement(self, node, env):
         t = node['type']
 
@@ -87,7 +99,6 @@ class Interpreter:
                             return result.value
                 except ReturnSignal as rs:
                     return rs.value
-
             env.define_func(node['name'], func)
 
         elif t == 'call_callable':
@@ -108,7 +119,7 @@ class Interpreter:
                 for handler in node.get('handlers', []):
                     if handler['exception'] in (type(e).__name__, 'Exception'):
                         local_env = Environment(env)
-                        local_env.define_var(handler['var'], str(e))  # o l'oggetto eccezione stesso
+                        local_env.define_var(handler['var'], str(e))
                         for stmt in handler['body']:
                             self.exec_statement(stmt, local_env)
                         handled = True
@@ -119,25 +130,36 @@ class Interpreter:
                 for stmt in node.get('finally', []):
                     self.exec_statement(stmt, env)
 
+        elif t == 'if':
+            condition = self.eval_expression(node['condition'], env)
+            if condition:
+                for stmt in node['body']:
+                    self.safe_execute(stmt, env)
+            elif node['else']:
+                for stmt in node['else']:
+                    self.safe_execute(stmt, env)
+
+        elif t == 'while':
+            while self.eval_expression(node['condition'], env):
+                for stmt in node['body']:
+                    self.safe_execute(stmt, env)
+
+        elif t == 'for':
+            self.exec_statement(node['init'], env)
+            while self.eval_expression(node['condition'], env):
+                for stmt in node['body']:
+                    self.safe_execute(stmt, env)
+                # l'aggiornamento può essere un'espressione standalone
+                self.exec_statement({'type':'expr_stmt','expr':node['update']}, env)
+
+        # ——— nuove aggiunte ———
+        elif t == 'expr_stmt':
+            # espressione standalone terminata da ';'
+            self.eval_expression(node['expr'], env)
+            return None
 
         else:
             raise RuntimeError(f"Unknown statement type: {t}")
-
-    def exec_block(self, stmts, env):
-        """
-        Esegue la lista di statement nel blocco di una funzione.
-        Il solo 'return' interrompe l’esecuzione restituendo un valore.
-        Le chiamate a funzione vengono eseguite (side-effect ed eventuale return),
-        ma non interrompono il flusso a meno che non siano un return esplicito.
-        """
-        for stmt in stmts:
-            if stmt['type'] == 'return':
-                # ritorno esplicito: restituisco subito l'espressione
-                return self.eval_expression(stmt['expression'], env)
-            # altrimenti eseguo lo statement:
-            self.exec_statement(stmt, env)
-            # fine del blocco senza return
-        return None
 
     def eval_expression(self, node, env):
         t = node['type']
@@ -145,52 +167,54 @@ class Interpreter:
         if t == 'literal':
             return node['value']
 
-        if t == 'identifier':
+        elif t == 'identifier':
             return env.get_var(node['name'])
 
-        if t == 'binary_op':
-            l = self.eval_expression(node['left'], env)
-            r = self.eval_expression(node['right'], env)
+        elif t == 'binary_op':
+            left = self.eval_expression(node['left'], env)
+            right = self.eval_expression(node['right'], env)
             op = node['op']
-            if op == '+': return l + r
-            if op == '-': return l - r
-            if op == '*': return l * r
-            if op == '/': return l / r
-            if op == '%': return l % r
-            raise RuntimeError(f"Unknown operator {op}")
+            if op == '+':   return left + right
+            if op == '-':   return left - right
+            if op == '*':   return left * right
+            if op == '/':   return left / right
+            if op == '%':   return left % right
+            if op == '<':   return left < right
+            if op == '>':   return left > right
+            if op == '<=':  return left <= right
+            if op == '>=':  return left >= right
+            if op == '==':  return left == right
+            if op == '!=':  return left != right
+            raise RuntimeError(f"Unknown binary operator {op}")
 
-        if t == 'unary_op':
-            # ++_pre, --_pre, ++_post, --_post come dal parser
+        elif t == 'unary_op':
             expr = node['expr']
+            name = expr.get('name')
             if node['op'] == '++_pre':
-                name = expr['name']
                 v = env.get_var(name) + 1
                 env.set_var(name, v)
                 return v
             if node['op'] == '--_pre':
-                name = expr['name']
                 v = env.get_var(name) - 1
                 env.set_var(name, v)
                 return v
             if node['op'] == '++_post':
-                name = expr['name']
                 old = env.get_var(name)
-                env.set_var(name, old+1)
+                env.set_var(name, old + 1)
                 return old
             if node['op'] == '--_post':
-                name = expr['name']
                 old = env.get_var(name)
-                env.set_var(name, old-1)
+                env.set_var(name, old - 1)
                 return old
             raise RuntimeError(f"Unknown unary op {node['op']}")
 
-        if t == 'call_callable':
-            # chiamata in espressione
+        elif t == 'call_callable':
             func = env.get_func(node['name'])
             args = [self.eval_expression(arg, env) for arg in node['args']]
             return func(*args)
 
-        raise RuntimeError(f"Unknown expression type {t}")
+        else:
+            raise RuntimeError(f"Unknown expression type {t}")
 
     def dump_env(self):
         print("\n=== Ambiente finale ===")
@@ -198,7 +222,3 @@ class Interpreter:
             print(f"{name} = {val}")
         for name in self.global_env.funcs:
             print(f"Function: {name}()")
-
-class ReturnSignal(Exception):
-    def __init__(self, value):
-        self.value = value
