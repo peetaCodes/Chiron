@@ -42,68 +42,101 @@ class Environment:
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
+        self.setup_stdlib()
+
+    def setup_stdlib(self):
+        self.global_env.define_func('print', lambda *args: print(*args))
 
     def interpret(self, ast):
-        # Prima passata: dichiarazioni
+        entry_point = None
+
+        # Primo passaggio: registra tutte le dichiarazioni di funzione
         for stmt in ast:
             if stmt['type'] == 'declaration_callable':
                 self.exec_statement(stmt, self.global_env)
-            elif stmt['type'] == 'declaration':
-                self.exec_statement(stmt, self.global_env)
+                if stmt['name'] == 'main':
+                    entry_point = stmt
 
-        # Cerca l'entry point
-        try:
-            main_func = self.global_env.get_func('main')
-            main_func()
-        except RuntimeError:
-            # Nessuna main: esegui il codice globale (escludendo dichiarazioni callable)
+        # Secondo passaggio: esegui solo il codice globale se non c'è main
+        if not entry_point:
             for stmt in ast:
-                if stmt['type'] not in ('declaration', 'declaration_callable'):
+                if stmt['type'] != 'declaration_callable':
                     self.exec_statement(stmt, self.global_env)
+        else:
+            func = self.global_env.get_func('main')
+            func()
+
+        self.dump_env()
 
     def exec_statement(self, node, env):
         t = node['type']
 
         if t == 'declaration':
-            # auto/primitive var declarations
             val = self.eval_expression(node['value'], env)
             env.define_var(node['name'], val)
 
         elif t == 'declaration_callable':
-            # Creo la chiusura funzione
-            def closure(*args):
-                # nuovo ambiente locale che chiude su env (definizione)
+            def func(*args):
                 local_env = Environment(env)
-                # assegno parametri
                 for i, param in enumerate(node['params']):
                     local_env.define_var(param['name'], args[i])
-                # eseguo il corpo fino al return
-                return self.exec_block(node['body'], local_env)
-            env.define_func(node['name'], closure)
+                try:
+                    for stmt in node.get('body', []):
+                        result = self.exec_statement(stmt, local_env)
+                        if isinstance(result, ReturnSignal):
+                            return result.value
+                except ReturnSignal as rs:
+                    return rs.value
 
-        elif t == 'return':
-            # non dovrebbe capitare qui se parse_statement li estrae
-            return self.eval_expression(node['expression'], env)
+            env.define_func(node['name'], func)
 
         elif t == 'call_callable':
-            # chiamata funzione come statement a sé stante
             func = env.get_func(node['name'])
             args = [self.eval_expression(arg, env) for arg in node['args']]
             return func(*args)
+
+        elif t == 'return':
+            value = self.eval_expression(node['expression'], env)
+            raise ReturnSignal(value)
+
+        elif t == 'try':
+            try:
+                for stmt in node['body']:
+                    self.exec_statement(stmt, env)
+            except Exception as e:
+                handled = False
+                for handler in node.get('handlers', []):
+                    if handler['exception'] in (type(e).__name__, 'Exception'):
+                        local_env = Environment(env)
+                        local_env.define_var(handler['var'], str(e))  # o l'oggetto eccezione stesso
+                        for stmt in handler['body']:
+                            self.exec_statement(stmt, local_env)
+                        handled = True
+                        break
+                if not handled:
+                    raise e
+            finally:
+                for stmt in node.get('finally', []):
+                    self.exec_statement(stmt, env)
+
 
         else:
             raise RuntimeError(f"Unknown statement type: {t}")
 
     def exec_block(self, stmts, env):
-        # esegue una sequenza di statement dentro una funzione
+        """
+        Esegue la lista di statement nel blocco di una funzione.
+        Il solo 'return' interrompe l’esecuzione restituendo un valore.
+        Le chiamate a funzione vengono eseguite (side-effect ed eventuale return),
+        ma non interrompono il flusso a meno che non siano un return esplicito.
+        """
         for stmt in stmts:
             if stmt['type'] == 'return':
-                # gestisco il return qui
+                # ritorno esplicito: restituisco subito l'espressione
                 return self.eval_expression(stmt['expression'], env)
-            res = self.exec_statement(stmt, env)
-            # se la chiamata a statement ha restituito qualcosa (callable in tail)
-            if stmt['type'] == 'call_callable':
-                return res
+            # altrimenti eseguo lo statement:
+            self.exec_statement(stmt, env)
+            # fine del blocco senza return
         return None
 
     def eval_expression(self, node, env):
@@ -158,3 +191,14 @@ class Interpreter:
             return func(*args)
 
         raise RuntimeError(f"Unknown expression type {t}")
+
+    def dump_env(self):
+        print("\n=== Ambiente finale ===")
+        for name, val in self.global_env.vars.items():
+            print(f"{name} = {val}")
+        for name in self.global_env.funcs:
+            print(f"Function: {name}()")
+
+class ReturnSignal(Exception):
+    def __init__(self, value):
+        self.value = value

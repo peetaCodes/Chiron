@@ -1,3 +1,4 @@
+
 from chiron_runtime.lexer import Token
 
 class SyntaxError(Exception):
@@ -37,6 +38,102 @@ class Parser:
         return stmts
 
     def parse_statement(self):
+        # ——— Chiamata standalone: ID '(' … ')' ';' ———
+        # (deve venire prima di return e modificatori)
+        if self.current().type == 'ID' and \
+                self.pos + 1 < len(self.tokens) and \
+                self.tokens[self.pos + 1].type == 'LPAREN':
+
+            name = self.current().value
+            self.advance()  # consumo ID
+            self.expect('LPAREN')  # consumo '('
+
+            args = []
+            while self.current().type != 'RPAREN':
+                args.append(self.parse_expression())
+                if self.current().type == 'COMMA':
+                    self.advance()
+                else:
+                    break
+            self.expect('RPAREN')
+            self.expect('SEMICOLON')
+
+            return {
+                'type': 'call_callable',
+                'name': name,
+                'args': args
+            }
+
+        # ——— Try/Except/Finally ———
+        if self.current().type == 'ID' and self.current().value == 'try':
+            # Consuma 'try'
+            self.advance()
+            # Corpo try
+            self.expect('LBRACE')
+            try_body_tokens = []
+            brace = 1
+            while brace > 0:
+                tok = self.current()
+                if tok.type == 'LBRACE':
+                    brace += 1
+                elif tok.type == 'RBRACE':
+                    brace -= 1
+                if brace > 0:
+                    try_body_tokens.append(tok)
+                self.advance()
+            try_body = Parser(try_body_tokens).parse()
+
+            # 1 o più except
+            handlers = []
+            while self.current().type == 'ID' and self.current().value == 'except':
+                self.advance()
+                # Tipo eccezione
+                exc_type = self.expect('ID').value
+                # 'as' nome variabile
+                self.expect('ID')  # dovrebbe essere 'as'
+                exc_var = self.expect('ID').value
+                # Corpo handler
+                self.expect('LBRACE')
+                body_tokens = [];
+                brace = 1
+                while brace > 0:
+                    tok = self.current()
+                    if tok.type == 'LBRACE':
+                        brace += 1
+                    elif tok.type == 'RBRACE':
+                        brace -= 1
+                    if brace > 0: body_tokens.append(tok)
+                    self.advance()
+                handlers.append({
+                    'exception': exc_type,
+                    'var': exc_var,
+                    'body': Parser(body_tokens).parse()
+                })
+
+            # Optional finally
+            final_body = None
+            if self.current().type == 'ID' and self.current().value == 'finally':
+                self.advance()
+                self.expect('LBRACE')
+                body_tokens = [];
+                brace = 1
+                while brace > 0:
+                    tok = self.current()
+                    if tok.type == 'LBRACE':
+                        brace += 1
+                    elif tok.type == 'RBRACE':
+                        brace -= 1
+                    if brace > 0: body_tokens.append(tok)
+                    self.advance()
+                final_body = Parser(body_tokens).parse()
+
+            return {
+                'type': 'try',
+                'body': try_body,
+                'handlers': handlers,
+                'finally': final_body
+            }
+
         if self.current().type == 'ID' and self.current().value == 'return':
             self.advance()
             expr = None
