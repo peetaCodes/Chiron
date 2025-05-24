@@ -130,7 +130,7 @@ class Interpreter:
             return None
 
         elif t == 'from_import':
-            mod_name = node['module']
+            mod_name = node['module']+(node['module'].replace('std', ''))
             try:
                 # Prima prova come stdlib Chiron
                 full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')

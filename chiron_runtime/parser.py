@@ -182,20 +182,29 @@ class Parser:
             self.advance()
             module_name += '.' + self.expect('ID').value
 
-        # 'import'
-        self.expect('ID')  # must be 'import'
-        names = []
-        while True:
-            name = self.expect('ID').value
-            as_alias = None
-            if self.current().type == 'ID' and self.current().value == 'as':
-                self.advance()
-                as_alias = self.expect('ID').value
-            names.append( (name, as_alias) )
-            if self.current().type == 'COMMA':
-                self.advance()
-                continue
-            break
+
+        self.advance()
+        print(self.current())
+        if  self.current().type == 'STAR':
+            pass
+
+
+        elif self.current().type == 'ID':
+            names = []
+            while True:
+                name = self.current().value
+                print(name)
+                as_alias = None
+                if self.current().type == 'ID' and self.current().value == 'as':
+                    self.advance()
+                    as_alias = self.expect('ID').value
+                names.append( (name, as_alias) )
+                if self.current().type == 'COMMA':
+                    self.advance()
+                    continue
+                break
+
+        self.advance()
 
         self.expect('SEMICOLON')
         return {
