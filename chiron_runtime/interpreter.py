@@ -114,26 +114,39 @@ class Interpreter:
         if t == 'import':
             mod_name = node['module']
             alias = node.get('alias') or mod_name.split('.')[-1]
-            full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-            module = importlib.import_module(full_py_mod)
-            # l'intero modulo lo registriamo come VAR
+
+            try:
+                # Prima prova come libreria Chiron
+                full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+                module = importlib.import_module(full_chiron_mod)
+            except ImportError:
+                try:
+                    # Altrimenti è un modulo PyPI
+                    module = importlib.import_module(mod_name)
+                except ImportError as e:
+                    raise RuntimeError(f"Cannot import module '{mod_name}': {e}")
+
             env.define_var(alias, module)
             return None
 
         elif t == 'from_import':
             mod_name = node['module']
-            full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-            module = importlib.import_module(full_py_mod)
+            try:
+                # Prima prova come stdlib Chiron
+                full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+                module = importlib.import_module(full_chiron_mod)
+            except ImportError:
+                try:
+                    # Altrimenti modulo PyPI
+                    module = importlib.import_module(mod_name)
+                except ImportError as e:
+                    raise RuntimeError(f"Cannot import module '{mod_name}': {e}")
 
             for name, alias in node['names']:
-                py_name = name + ('_' if name in ('print', 'input') else '')
-                obj = getattr(module, py_name)
-
+                obj = getattr(module, name)
                 if callable(obj):
-                    # se è funzione / callable, lo registra nello spazio functions
                     env.define_func(alias or name, obj)
                 else:
-                    # altrimenti come variabile
                     env.define_var(alias or name, obj)
             return None
 
