@@ -1,13 +1,18 @@
-# interpreter.py
+import os
+from chiron_runtime.lexer import Lexer
+from chiron_runtime.parser import Parser
+
+import importlib
 
 class RuntimeError(Exception):
     pass
 
 class Environment:
     def __init__(self, parent=None):
-        self.vars = {}
-        self.funcs = {}
-        self.parent = parent
+        self.vars    = {}
+        self.funcs   = {}
+        self.modules = {}      # <— moduli importati
+        self.parent  = parent
 
     def define_var(self, name, value):
         self.vars[name] = value
@@ -39,6 +44,17 @@ class Environment:
         else:
             raise RuntimeError(f"Function '{name}' not defined")
 
+    def define_module(self, name, env):
+        self.modules[name] = env
+
+    def get_module(self, name):
+        if name in self.modules:
+            return self.modules[name]
+        elif self.parent:
+            return self.parent.get_module(name)
+        else:
+            raise RuntimeError(f"Module '{name}' not imported")
+
 class ReturnSignal(Exception):
     def __init__(self, value):
         self.value = value
@@ -49,27 +65,31 @@ class Interpreter:
         self.setup_stdlib()
 
     def setup_stdlib(self):
-        self.global_env.define_func('print', lambda *args: print(*args))
+        dev_mode = False  # cambia in False in produzione
+
+        if dev_mode:
+            try:
+                stdio = importlib.import_module('chiron_runtime.stdlib.std.io')
+                self.global_env.define_func('print', getattr(stdio, 'print_'))
+                self.global_env.define_func('input', getattr(stdio, 'input_'))
+            except ImportError:
+                pass
 
     def interpret(self, ast):
-        entry_point = None
-
-        # Primo passaggio: registra tutte le dichiarazioni di funzione
+        # prima registriamo le funzioni, come sempre
+        entry = None
         for stmt in ast:
-            if stmt['type'] == 'declaration_callable':
+            if stmt['type']=='declaration_callable':
                 self.exec_statement(stmt, self.global_env)
-                if stmt['name'] == 'main':
-                    entry_point = stmt
-
-        # Secondo passaggio: esegui solo il codice globale se non c'è main
-        if not entry_point:
+                if stmt['name']=='main':
+                    entry = stmt
+        # poi eseguiamo codice globale solo se non c'è main
+        if not entry:
             for stmt in ast:
-                if stmt['type'] != 'declaration_callable':
+                if stmt['type']!='declaration_callable':
                     self.exec_statement(stmt, self.global_env)
         else:
-            func = self.global_env.get_func('main')
-            func()
-
+            self.global_env.get_func('main')()
         self.dump_env()
 
     def safe_execute(self, node, env):
@@ -83,7 +103,33 @@ class Interpreter:
     def exec_statement(self, node, env):
         t = node['type']
 
-        if t == 'declaration':
+        if t == 'import':
+            mod_name = node['module']
+            alias = node.get('alias') or mod_name.split('.')[-1]
+            full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+            module = importlib.import_module(full_py_mod)
+            # l'intero modulo lo registriamo come VAR
+            env.define_var(alias, module)
+            return None
+
+        elif t == 'from_import':
+            mod_name = node['module']
+            full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+            module = importlib.import_module(full_py_mod)
+
+            for name, alias in node['names']:
+                py_name = name + ('_' if name in ('print', 'input') else '')
+                obj = getattr(module, py_name)
+
+                if callable(obj):
+                    # se è funzione / callable, lo registra nello spazio functions
+                    env.define_func(alias or name, obj)
+                else:
+                    # altrimenti come variabile
+                    env.define_var(alias or name, obj)
+            return None
+
+        elif t == 'declaration':
             val = self.eval_expression(node['value'], env)
             env.define_var(node['name'], val)
 
@@ -99,6 +145,7 @@ class Interpreter:
                             return result.value
                 except ReturnSignal as rs:
                     return rs.value
+
             env.define_func(node['name'], func)
 
         elif t == 'call_callable':
@@ -119,7 +166,7 @@ class Interpreter:
                 for handler in node.get('handlers', []):
                     if handler['exception'] in (type(e).__name__, 'Exception'):
                         local_env = Environment(env)
-                        local_env.define_var(handler['var'], str(e))
+                        local_env.define_var(handler['var'], str(e))  # o l'oggetto eccezione stesso
                         for stmt in handler['body']:
                             self.exec_statement(stmt, local_env)
                         handled = True
@@ -150,7 +197,7 @@ class Interpreter:
                 for stmt in node['body']:
                     self.safe_execute(stmt, env)
                 # l'aggiornamento può essere un'espressione standalone
-                self.exec_statement({'type':'expr_stmt','expr':node['update']}, env)
+                self.exec_statement({'type': 'expr_stmt', 'expr': node['update']}, env)
 
         # ——— nuove aggiunte ———
         elif t == 'expr_stmt':
@@ -215,6 +262,48 @@ class Interpreter:
 
         else:
             raise RuntimeError(f"Unknown expression type {t}")
+
+    def handle_import(self, node, env):
+        modname = node['module']
+        alias   = node['alias']
+        # cerchiamo foo.chy in std/ o nella cwd
+        path = f"std/{modname}.chy"
+        if not os.path.exists(path):
+            path = f"{modname}.chy"
+        with open(path) as f:
+            code = f.read()
+        # lex + parse + interpret in un env separato
+        mod_env = Environment()
+        mod_ast = Parser(Lexer(code).tokenize()).parse()
+        Interpreter()._interpret_in_env(mod_ast, mod_env)
+        env.define_module(alias, mod_env)
+
+    def handle_from_import(self, node, env):
+        mod = env.get_module(node['module'])
+        for name in node['names']:
+            if name == '*':
+                # importa tutto: variabili + funzioni
+                for v, val in mod.vars.items():
+                    env.define_var(v, val)
+                for f, fn in mod.funcs.items():
+                    env.define_func(f, fn)
+            else:
+                # importa solo name
+                if name in mod.vars:
+                    env.define_var(name, mod.vars[name])
+                elif name in mod.funcs:
+                    env.define_func(name, mod.funcs[name])
+                else:
+                    raise RuntimeError(f"No symbol '{name}' in module '{node['module']}'")
+
+    def _interpret_in_env(self, ast, env):
+        # versione interna di interpret che usa l'env fornito
+        for stmt in ast:
+            if stmt['type']=='declaration_callable':
+                self.exec_statement(stmt, env)
+        for stmt in ast:
+            if stmt['type']!='declaration_callable':
+                self.exec_statement(stmt, env)
 
     def dump_env(self):
         print("\n=== Ambiente finale ===")

@@ -39,6 +39,7 @@ class Lexer:
             ('COMMA', r','),
             ('COLON', r':'),
             ('SEMICOLON', r';'),
+            ('DOT', r'\.'),
             ('EQUAL', r'='),
             ('NUMBER', r'\d+(\.\d*)?'),
             ('STRING', r'"([^"\\]|\\.)*"'),
@@ -47,6 +48,7 @@ class Lexer:
             ('NEWLINE', r'\n'),
             ('SKIP', r'[ \t]+'),
             ('MISMATCH', r'.'),
+
         ]
         self.master_pat = re.compile(
             '|'.join(f'(?P<{name}>{pat})' for name,pat in self.token_specification)
