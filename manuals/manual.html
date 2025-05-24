@@ -1627,6 +1627,10 @@ finally {
 <div class="paragraph">
 <p>Per importare un modulo, si usa la parola chiave <code>import</code>. Il nome del file (senza estensione <code>.chy</code>) è usato come nome del modulo.</p>
 </div>
+<div class="paragraph">
+<p>Chrion inoltre supporta l&#8217;importazione di qualsiasi libreria python, anche se installata sotto <em>virtual enviroment</em>.
+Basta installare una qualsiasi libreria tramite il classico 'pip install' e importarla direttamente dentro chiron</p>
+</div>
 <div class="listingblock">
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="cpp">import util;
@@ -1635,14 +1639,29 @@ finally {
 print(risultato);  <span style="color:#579"># stampa</span>: <span style="color:#00D">9</span></code></pre>
 </div>
 </div>
+<div class="listingblock">
+<div class="title">Installazione standard libreria python</div>
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">pip install requests</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">Importazione libreria python</div>
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">requests</span>;
+
+auto res = get(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">https://httpbin.org/get</span><span style="color:#710">&quot;</span></span>);
+print(res.text);</code></pre>
+</div>
+</div>
 <div class="paragraph">
 <p>È possibile rinominare un modulo al momento dell’importazione con <code>as</code>.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp">import util as u;
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">util</span> <span style="color:#080;font-weight:bold">as</span> u;
 
-print(u : VERSIONE);  <span style="color:#579"># stampa</span>: <span style="color:#00D">1</span></code></pre>
+print(u : VERSIONE);  <span style="color:#777"># stampa: 1</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1652,43 +1671,35 @@ print(u : VERSIONE);  <span style="color:#579"># stampa</span>: <span style="col
 <div class="sect2">
 <h3 id="_10_3_libreria_standard_prevista">10.3 Libreria standard prevista</h3>
 <div class="paragraph">
-<p>La libreria standard di Chiron fornisce moduli integrati che facilitano operazioni comuni. I moduli più importanti includono:</p>
+<p>La libreria standard chrion è <strong>molto limitata</strong> in quanto essendo possibile importare qualsiasi modulo della <em>libreria standard python</em> (<strong>PSL</strong>) non c&#8217;è una grande necessità di re-implementare le stesse funzionalità.</p>
+</div>
+<div class="paragraph">
+<p>Attualmente include solo wrapper dei metodi <code>builtis</code> di python, che sarebbero altrimenti tediosi, ambigui o impossibili da importare</p>
+</div>
+<div class="paragraph">
+<p>La chiron stdlib contiene quindi:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>std.io</code> – Input/output (es. <code>print</code>, <code>input</code>)</p>
+<p><code>std.io</code> – Standard I/O e validazione avanzata dell' input tramite <em>custom-pyinputplus</em> <sup class="footnote">[<a id="_footnoteref_1" class="footnote" href="#_footnotedef_1" title="View footnote.">1</a>]</sup></p>
 </li>
 <li>
-<p><code>std.math</code> – Funzioni matematiche comuni (<code>abs</code>, <code>sqrt</code>, <code>pow</code>)</p>
-</li>
-<li>
-<p><code>std.fs</code> – Gestione file (lettura, scrittura) e formati comuni come JSON, SQL etc.</p>
-</li>
-<li>
-<p><code>std.str</code> – Manipolazione di stringhe</p>
-</li>
-<li>
-<p><code>std.time</code> – Gestione del tempo e delle date</p>
-</li>
-<li>
-<p><code>std.sys</code> – Informazioni e comandi di sistema</p>
+<p><code>std.fs</code> – Wrapper dei metodi di lettura/scrittura file python</p>
 </li>
 </ul>
 </div>
-<div class="paragraph">
-<p>Esempio di utilizzo di una funzione dalla libreria standard:</p>
-</div>
 <div class="listingblock">
+<div class="title">Esempio di utilizzo di una funzione dalla PSL:</div>
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp">import std.math;
+<pre class="CodeRay highlight"><code data-lang="cpp">import math;
 
-<span style="color:#0a8;font-weight:bold">float</span> radice = std.math : sqrt(<span style="color:#00D">1</span><span style="color:#60E">6</span><span style="color:#60E">.0</span>);
+<span style="color:#0a8;font-weight:bold">float</span> radice = math : sqrt(<span style="color:#00D">1</span><span style="color:#60E">6</span><span style="color:#60E">.0</span>);
 print(radice);  <span style="color:#579"># stampa</span>: <span style="color:#60E">4</span><span style="color:#60E">.0</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>La libreria standard di Chiron è progettata per essere minimale ma estendibile. Nuovi moduli possono essere installati e importati come qualsiasi altro file <code>.chy</code>.</p>
+<p>Nuovi moduli possono essere installati e importati come qualsiasi altro file <code>.chy</code>.</p>
 </div>
 </div>
 </div>
@@ -1701,31 +1712,31 @@ print(radice);  <span style="color:#579"># stampa</span>: <span style="color:#60
 <div class="paragraph">
 <p>Chiron fornisce funzioni integrate per l&#8217;interazione con l&#8217;utente tramite console.</p>
 </div>
-<div class="sect3">
-<h4 id="_print"><code>print(&#8230;&#8203;)</code></h4>
 <div class="paragraph">
-<p>Stampa uno o più valori sulla console, separati da uno spazio.</p>
+<p>Per importare le funzioni print() e input() ci sono due modi:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>Tramite Python Standard Library:</code> Bisogna importare il modulo <code>builtins</code> della PSL e con esso anche le amate 'print' e 'input'. <strong>Questo è fortemente sconsigliato</strong></p>
+</li>
+<li>
+<p><code>Tramite Chiron Standard Library:</code> Bisogna importare il modulo <code>std.io</code> della chiron stdlib. <strong>Metodo approvato</strong></p>
+</li>
+</ul>
 </div>
 <div class="listingblock">
+<div class="title">Importazione tramite <strong>PSL</strong></div>
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp">print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Hello, World!</span><span style="color:#710">&quot;</span></span>);
-print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Valore:</span><span style="color:#710">&quot;</span></span>, <span style="color:#00D">42</span>, <span style="color:#069">true</span>);</code></pre>
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">builtins</span> <span style="color:#777"># fortemente sconsigliato in quanto sovrascrive i builtins di chirion</span>
+<span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">builtins</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">print</span>, <span style="color:#B44;font-weight:bold">input</span> <span style="color:#777"># sconsigliato in quanto ambiguo, ma senza override</span></code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p><strong>Supporta tipi primitivi e stringhe, e converte automaticamente i tipi in formato testuale.</strong></p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_inputprompt_str_str"><code>input(prompt: str) &#8594; str</code></h4>
-<div class="paragraph">
-<p>Legge una riga da input utente e la restituisce come stringa.</p>
 </div>
 <div class="listingblock">
+<div class="title">Importazione tramite <strong>chiron stdlib</strong></div>
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp">str nome = input(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Inserisci il tuo nome: </span><span style="color:#710">&quot;</span></span>);
-print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Benvenuto</span><span style="color:#710">&quot;</span></span>, nome);</code></pre>
-</div>
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">std.io</span> <span style="color:#777"># importa anche custom-pyinputplus e custom-pysimplevalidate</span>
+<span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">std.io</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">print</span>, <span style="color:#B44;font-weight:bold">input</span></code></pre>
 </div>
 </div>
 </div>
@@ -1733,6 +1744,18 @@ print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#7
 <h3 id="_11_2_gestione_dei_file_lettura_scrittura_apertura">11.2 Gestione dei file: lettura, scrittura, apertura</h3>
 <div class="paragraph">
 <p>Chiron supporta la gestione dei file tramite l&#8217;interfaccia <code>file</code>, presente nel modulo <code>std.fs</code>.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+È possibile usare la PSL usando <code>import _pyio</code>. Resta però una pratica sconsigliata
+</td>
+</tr>
+</table>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1763,7 +1786,7 @@ f : close();</code></pre>
 </ul>
 </div>
 <div class="paragraph">
-<p>Per ognuno di questi sistemi esiste le varianti più comuni come 'b' per lettura di tipo bytes (esempio 'rb' per lettura dei bytes si un file)</p>
+<p>Per ognuno di questi sistemi esiste le varianti più comuni come <code>'b'</code> per lettura di tipo bytes (esempio 'rb' per lettura dei bytes si un file)</p>
 </div>
 <div class="paragraph">
 <p><strong>Metodi disponibili su oggetti <code>file</code></strong>:</p>
@@ -1944,10 +1967,16 @@ Comandi disponibili:
 </div>
 </div>
 </div>
+<div id="footnotes">
+<hr>
+<div class="footnote" id="_footnotedef_1">
+<a href="#_footnoteref_1">1</a>. fork della libreria 'pyinputplus' creata da alSweigart. Fork di peetaCodes, autore di chiron e di questo manuale
+</div>
+</div>
 <div id="footer">
 <div id="footer-text">
 Version 0.2<br>
-Last updated 2025-05-23 23:46:09 +0200
+Last updated 2025-05-24 21:39:36 +0200
 </div>
 </div>
 <script>

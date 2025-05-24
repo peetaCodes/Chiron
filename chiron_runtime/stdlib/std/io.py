@@ -1,7 +1,5 @@
 # chiron_runtime/stdlib/std/io.py
 
-# TODO: try coding the chiron stdlib in chiron itself rather than python
-
 def print_(*args):
     """
     Chiron std.io.print: alias di print Python
