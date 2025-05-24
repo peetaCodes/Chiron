@@ -1,4 +1,5 @@
 from chiron_runtime.lexer import Token
+import importlib
 
 class SyntaxError(Exception):
     pass
@@ -177,16 +178,21 @@ class Parser:
     def parse_from_import(self):
         # from modulo import name [, name2, ...] [as alias] ;
         self.expect('ID')  # 'from'
-        module_name = self.expect('ID').value
+        module_name:str = self.expect('ID').value
         while self.current().type == 'DOT':
             self.advance()
             module_name += '.' + self.expect('ID').value
+            module_name += module_name.replace('std','')
 
 
         self.advance()
-        print(self.current())
+
+        names = []
+
         if  self.current().type == 'STAR':
-            pass
+            module = importlib.import_module('chiron_runtime.stdlib.'+module_name)
+            objects = module.__all__
+            names = [(x, x) for x in objects]
 
 
         elif self.current().type == 'ID':

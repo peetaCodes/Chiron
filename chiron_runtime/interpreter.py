@@ -4,6 +4,8 @@ from chiron_runtime.parser import Parser
 
 import importlib
 
+#TODO: fix the 'maximum recoursion depth exceeded'
+
 class RuntimeError(Exception):
     pass
 
@@ -69,7 +71,7 @@ class Interpreter:
 
         if dev_mode:
             try:
-                stdio = importlib.import_module('chiron_runtime.stdlib.std.io')
+                stdio = importlib.import_module('chiron_runtime.stdlib.std.io.io')
                 self.global_env.define_func('print', getattr(stdio, 'print_'))
                 self.global_env.define_func('input', getattr(stdio, 'input_'))
             except ImportError:
@@ -130,7 +132,7 @@ class Interpreter:
             return None
 
         elif t == 'from_import':
-            mod_name = node['module']+(node['module'].replace('std', ''))
+            mod_name = node['module']
             try:
                 # Prima prova come stdlib Chiron
                 full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')

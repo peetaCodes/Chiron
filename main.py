@@ -2,6 +2,9 @@ from chiron_runtime.lexer import Lexer
 from chiron_runtime.parser import Parser
 from chiron_runtime.interpreter import Interpreter
 
+import sys
+print(sys.getrecursionlimit())
+
 def run_file(filename):
     with open(filename, "r", encoding="utf-8") as f:
         source_code = f.read()
