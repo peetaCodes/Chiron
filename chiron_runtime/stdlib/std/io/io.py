@@ -1,5 +1,4 @@
 # Imports needed by: PySimpleValidate
-
 from __future__ import absolute_import, division, print_function
 
 import calendar
@@ -11,6 +10,8 @@ import time
 from typing import Union, Pattern, Type, Dict, Tuple, Optional, Sequence, Any, List
 
 import getpass
+
+import builtins
 
 __all__ = [
     'PyInputPlusException',
@@ -76,6 +77,7 @@ __all__ = [
     'validateYesNo',
 ]
 
+
 def print_(*args):
     """
     Chiron std.io.print: alias di print Python
@@ -87,7 +89,7 @@ def input_(prompt: str = "") -> str:
     """
     Chiron std.io.input: alias di input Python
     """
-    return input(prompt)
+    return builtins.input(prompt)
 
 """
 PySimpleValidate
@@ -1412,7 +1414,7 @@ def _genericInput(
         # Get the user input.
         print(prompt, end="")
         if passwordMask is None:
-            userInput = input()
+            userInput = builtins.input()
         else:
             userInput = getpass(prompt="", mask=passwordMask)
         tries += 1
@@ -1564,6 +1566,7 @@ def inputNum(
     # type: (str, Any, bool, Optional[float], Optional[int], Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[Callable], Optional[Callable], Optional[float], Optional[float], Optional[float], Optional[float]) -> Any
 
     # Validate the arguments passed to validateNum().
+
     _validateParamsFor_validateNum(min=min, max=max, lessThan=lessThan, greaterThan=greaterThan)
 
     validationFunc = lambda value: validateNum(
@@ -2585,44 +2588,4 @@ def inputPassword(
         postValidateApplyFunc=postValidateApplyFunc,
         validationFunc=validationFunc,
         passwordMask=mask,
-    )
-
-
-# Wrap all of the PySimpleValidate functions so that they can be called
-# from PyInputPlus and will raise pyinputplus.ValidationException instead.
-for functionName in (
-        "validateStr",
-        "validateNum",
-        "validateInt",
-        "validateFloat",
-        "validateChoice",
-        "validateTime",
-        "validateDate",
-        "validateDatetime",
-        "validateFilename",
-        "validateFilepath",
-        "validateIP",
-        "validateIPv4",
-        "validateIPv6",
-        "validateRegex",
-        "validateRegexStr",
-        "validateURL",
-        "validateEmail",
-        "validateYesNo",
-        "validateBool",
-        "validateUSState",
-        "validateName",
-        "validateAddress",
-        "validatePhone",
-        "validateMonth",
-        "validateDayOfWeek",
-        "validateDayOfMonth",
-):
-    exec(
-        """def %s(value, *args, **kwargs):
-    try:
-        return %s(value, *args, **kwargs)
-    except ValidationException as e:
-        raise ValidationException(str(e))"""
-        % (functionName, functionName)
     )

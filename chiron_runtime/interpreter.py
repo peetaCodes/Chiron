@@ -64,6 +64,7 @@ class ReturnSignal(Exception):
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
+        self.loaded_modules = {}  # <— inizializza qui, una volta sola
         self.setup_stdlib()
 
     def setup_stdlib(self):
@@ -114,38 +115,39 @@ class Interpreter:
         t = node['type']
 
         if t == 'import':
-            mod_name = node['module']
+            mod_name = node['module']  # es. "std.io"
             alias = node.get('alias') or mod_name.split('.')[-1]
+            # se l’abbiamo già caricato, lo riutilizziamo
+            if mod_name in self.loaded_modules:
+                env.define_module(alias, self.loaded_modules[mod_name])
+                return None
 
-            try:
-                # Prima prova come libreria Chiron
-                full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-                module = importlib.import_module(full_chiron_mod)
-            except ImportError:
-                try:
-                    # Altrimenti è un modulo PyPI
-                    module = importlib.import_module(mod_name)
-                except ImportError as e:
-                    raise RuntimeError(f"Cannot import module '{mod_name}': {e}")
+            # altrimenti lo carichiamo
+            py_mod_path = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+            module = importlib.import_module(py_mod_path)
 
-            env.define_var(alias, module)
+            # creiamo un nuovo Environment per il modulo
+            mod_env = Environment()
+            # (eventualmente potresti eseguire in mod_env eventuali init del modulo .chy,
+            #  ma per la stdlib python basta import)
+            self.loaded_modules[mod_name] = mod_env
+            env.define_module(alias, mod_env)
             return None
 
         elif t == 'from_import':
             mod_name = node['module']
-            try:
-                # Prima prova come stdlib Chiron
-                full_chiron_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-                module = importlib.import_module(full_chiron_mod)
-            except ImportError:
-                try:
-                    # Altrimenti modulo PyPI
-                    module = importlib.import_module(mod_name)
-                except ImportError as e:
-                    raise RuntimeError(f"Cannot import module '{mod_name}': {e}")
-
+            # assicuriamoci di aver già caricato il modulo via import
+            if mod_name not in self.loaded_modules:
+                # eseguiamo l’import “normale” sotto il cofano
+                fake_node = {'type': 'import', 'module': mod_name, 'alias': mod_name.split('.')[-1]}
+                self.exec_statement(fake_node, env)
+            mod_env = self.loaded_modules[mod_name]
             for name, alias in node['names']:
-                obj = getattr(module, name)
+                # python uses trailing underscore on stdlib side
+                py_name = name + ('_' if name in ('print', 'input') else '')
+                obj = getattr(importlib.import_module(
+                    'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+                ), py_name)
                 if callable(obj):
                     env.define_func(alias or name, obj)
                 else:
