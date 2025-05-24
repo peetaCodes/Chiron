@@ -12,8 +12,6 @@ def run_file(filename):
     parser = Parser(tokens)
     ast = parser.parse()
 
-    #print('DEBUG ast: ', ast)
-
     interpreter = Interpreter()
     interpreter.interpret(ast)
 

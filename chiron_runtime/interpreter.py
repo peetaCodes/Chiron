@@ -76,20 +76,28 @@ class Interpreter:
                 pass
 
     def interpret(self, ast):
-        # prima registriamo le funzioni, come sempre
         entry = None
+
+        # 1. Prima esegue tutti gli import
         for stmt in ast:
-            if stmt['type']=='declaration_callable':
+            if stmt['type'] in ('import', 'from_import'):
                 self.exec_statement(stmt, self.global_env)
-                if stmt['name']=='main':
+
+        # 2. Poi registra tutte le funzioni
+        for stmt in ast:
+            if stmt['type'] == 'declaration_callable':
+                self.exec_statement(stmt, self.global_env)
+                if stmt['name'] == 'main':
                     entry = stmt
-        # poi eseguiamo codice globale solo se non c'è main
-        if not entry:
-            for stmt in ast:
-                if stmt['type']!='declaration_callable':
-                    self.exec_statement(stmt, self.global_env)
-        else:
+
+        # 3. Infine, o esegue main() o il codice globale
+        if entry:
             self.global_env.get_func('main')()
+        else:
+            for stmt in ast:
+                if stmt['type'] not in ('declaration_callable', 'import', 'from_import'):
+                    self.exec_statement(stmt, self.global_env)
+
         self.dump_env()
 
     def safe_execute(self, node, env):
@@ -199,7 +207,6 @@ class Interpreter:
                 # l'aggiornamento può essere un'espressione standalone
                 self.exec_statement({'type': 'expr_stmt', 'expr': node['update']}, env)
 
-        # ——— nuove aggiunte ———
         elif t == 'expr_stmt':
             # espressione standalone terminata da ';'
             self.eval_expression(node['expr'], env)
