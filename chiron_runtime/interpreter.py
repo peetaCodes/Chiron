@@ -108,24 +108,64 @@ class Interpreter:
         t = node['type']
 
         if t == 'import':
-            # gestisce più moduli
-            for mod_name, alias in node['modules']:
-                alias = alias or mod_name.split('.')[-1]
-                full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-                module = importlib.import_module(full_py_mod)
+            for module_name in node['modules']:
+                if module_name[0].startswith("std."):
+                    # Importa dalla stdlib di Chiron
+                    full_py_mod = 'chiron_runtime.stdlib.' + module_name[0]
+                else:
+                    # Importa come modulo Python puro
+                    full_py_mod = module_name[0]
+
+                try:
+                    module = importlib.import_module(full_py_mod)
+                except ImportError as e:
+                    raise RuntimeError(f"Impossibile importare modulo '{module_name}': {e}")
+
+                alias = module_name[1]
                 env.define_var(alias, module)
-            return None
 
         elif t == 'from_import':
-            full_py_mod = 'chiron_runtime.stdlib.' + node['module'].replace('.', '.')
-            module = importlib.import_module(full_py_mod)
-            for name, alias in node['names']:
-                obj = getattr(module, name)
-                if callable(obj):
-                    env.define_func(alias or name, obj)
+            mod_name = node['module']
+            if mod_name.startswith("std."):
+                full_py_mod = 'chiron_runtime.stdlib.' + mod_name
+
+            else:
+                full_py_mod = mod_name
+
+            try:
+                module = importlib.import_module(full_py_mod)
+            except ImportError as e:
+                raise RuntimeError(f"Impossibile importare modulo '{mod_name}': {e}")
+
+            for item in node['names']:
+                if isinstance(item, tuple):
+                    name, alias = item
+
                 else:
-                    env.define_var(alias or name, obj)
-            return None
+
+                    name = item
+                    alias = name
+
+                if name == '*':
+                    # importa tutto ciò che non è privato
+                    for attr in dir(module):
+                        if not attr.startswith("_"):
+                            obj = getattr(module, attr)
+                            if callable(obj):
+                                env.define_func(attr, obj)
+                            else:
+                                env.define_var(attr, obj)
+
+                else:
+                    if not hasattr(module, name):
+                        raise RuntimeError(f"Il modulo '{mod_name}' non ha attributo '{name}'")
+
+                    obj = getattr(module, name)
+                    if callable(obj):
+                        env.define_func(alias, obj)
+
+                    else:
+                        env.define_var(alias, obj)
 
         elif t == 'declaration':
             val = self.eval_expression(node['value'], env)
@@ -230,7 +270,6 @@ class Interpreter:
         elif t == 'identifier':
             return env.get_var(node['name'])
 
-
         elif t == 'logic':
             left = self.eval_expression(node['left'], env)
             right = self.eval_expression(node['right'], env)
@@ -239,7 +278,6 @@ class Interpreter:
                 return left and right
             else:  # 'or'
                 return left or right
-
 
         elif t == 'unary_logic':
             val = self.eval_expression(node['expr'], env)
@@ -285,17 +323,18 @@ class Interpreter:
             raise RuntimeError(f"Unknown unary op {node['op']}")
 
         elif t == 'call_callable':
-            func = env.get_func(node['name'])
-            # 1) positional args
-            pos_args = [ self.eval_expression(a, env)
-                         for a in node.get('args', []) ]
-            # 2) keyword args (dal parser, campo 'kwargs')
-            kw_args = {}
-            for key, val_node in node.get('kwargs', {}).items():
-                kw_args[key] = self.eval_expression(val_node, env)
+            name_node = node['name']
+            if name_node['type'] == 'identifier':
+                func = env.get_func(name_node['name'])
+            elif name_node['type'] == 'get_attr':
+                obj = self.eval_expression(name_node['object'], env)
+                func = getattr(obj, name_node['attr'])
+            else:
+                raise RuntimeError(f"Invalid function name: {name_node}")
 
+            pos_args = [self.eval_expression(arg, env) for arg in node['args']]
+            kw_args = {key: self.eval_expression(val, env) for key, val in node.get('kwargs', {}).items()}
             return func(*pos_args, **kw_args)
-
 
         else:
             raise RuntimeError(f"Unknown expression type {t}")

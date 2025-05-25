@@ -36,6 +36,11 @@ class Parser:
         self.advance()
         return tok
 
+    def lookahead(self):
+        self.advance(); next = self.current()
+        self.pos -= 1
+        return next
+
     def match(self, *ttypes):
         tok = self.current()
         if tok.type in ttypes:
@@ -190,21 +195,23 @@ class Parser:
         self.expect('ID')  # 'from'
         module = self.parse_module_path()
         self.expect('ID')  # 'import'
+
+        # Supporta 'from modulo import *' e 'from modulo import x, y'
         names = []
-
-        while True:
-            name = self.expect('ID').value
-            alias = None
-            if self.current().type == 'ID' and self.current().value == 'as':
-                self.advance()
-                alias = self.expect('ID').value
-            names.append((name, alias))
-
-            if not self.match('COMMA'):
-                break
+        if self.current().type == 'STAR':
+            self.advance()
+            names = ['*']
+        else:
+            names = [self.expect('ID').value]
+            while self.match('COMMA'):
+                names.append(self.expect('ID').value)
 
         self.expect('SEMICOLON')
-        return {'type': 'from_import', 'module': module, 'names': names}
+        return {
+            'type': 'from_import',
+            'module': module,
+            'names': names
+        }
 
     # ——— Helper per nomi di modulo puntati ———
     def parse_module_path(self) -> str:
@@ -372,21 +379,30 @@ class Parser:
 
     def parse_unary(self):
         if self.match('INCREMENT'):
-            self.expect('COLON')
-            expr = self.parse_unary()
-            return {'type':'unary_op','op':'++_pre','expr':expr}
+            if self.match('COLON'):
+                expr = self.parse_unary()
+                return {'type': 'unary_op', 'op': '++_pre', 'expr': expr}
+            else:
+                raise SyntaxError("Expected ':' after '++'")
         if self.match('DECREMENT'):
-            self.expect('COLON')
-            expr = self.parse_unary()
-            return {'type':'unary_op','op':'--_pre','expr':expr}
-        # fallback to primary
+            if self.match('COLON'):
+                expr = self.parse_unary()
+                return {'type': 'unary_op', 'op': '--_pre', 'expr': expr}
+            else:
+                raise SyntaxError("Expected ':' after '--'")
+
         node = self.parse_primary()
+
+        # accetta ':' anche se non seguito da ++ o -- (viene ignorato)
         if self.match('COLON'):
             if self.match('INCREMENT'):
-                return {'type':'unary_op','op':'++_post','expr':node}
-            if self.match('DECREMENT'):
-                return {'type':'unary_op','op':'--_post','expr':node}
-            raise SyntaxError("':' must be followed by '++' or '--'")
+                return {'type': 'unary_op', 'op': '++_post', 'expr': node}
+            elif self.match('DECREMENT'):
+                return {'type': 'unary_op', 'op': '--_post', 'expr': node}
+            else:
+                # interpretalo come "continuazione" e lascia passare
+                pass
+
         return node
 
     def parse_primary(self):
@@ -401,42 +417,33 @@ class Parser:
         if tok.type=='CHAR':
             self.advance()
             return {'type':'literal','value':tok.value[1]}
-        if tok.type=='ID':
-            name = tok.value
+        if tok.type == 'ID':
+            node = {'type': 'identifier', 'name': tok.value}
             self.advance()
+
+            # gestisce accessi a proprietà: a.b.c
+            while self.match('DOT'):
+                attr = self.expect('ID').value
+                node = {'type': 'get_attr', 'object': node, 'attr': attr}
+
+            # se c'è '(', è una chiamata
             if self.current().type == 'LPAREN':
-                self.expect('LPAREN')
+                self.advance()
                 args = []
                 kwargs = {}
-
                 while self.current().type != 'RPAREN':
-                    if self.current().type == 'ID' and \
-                            self.pos + 1 < len(self.tokens) and \
-                            self.tokens[self.pos + 1].type == 'EQUAL':
-                        # keyword argument
-                        key = self.current().value
-                        self.advance()  # consume ID
+                    if self.current().type == 'ID' and self.lookahead().type == 'EQUAL':
+                        key = self.expect('ID').value
                         self.expect('EQUAL')
-                        value = self.parse_expression()
-                        kwargs[key] = value
+                        val = self.parse_expression()
+                        kwargs[key] = val
                     else:
-                        # positional argument
                         args.append(self.parse_expression())
-
                     if self.current().type == 'COMMA':
                         self.advance()
-                    else:
-                        break
-
                 self.expect('RPAREN')
-
-                return {
-                    'type': 'call_callable',
-                    'name': name,
-                    'args': args,
-                    'kwargs': kwargs
-                }
-            return {'type':'identifier','name':name}
+                node = {'type': 'call_callable', 'name': node, 'args': args, 'kwargs': kwargs}
+            return node
         if tok.type=='LPAREN':
             self.advance()
             expr = self.parse_expression()
