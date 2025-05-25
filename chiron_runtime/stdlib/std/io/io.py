@@ -7,7 +7,7 @@ import re
 import sys
 import time
 
-from typing import Union, Pattern, Type, Dict, Tuple, Optional, Sequence, Any, List
+from typing import Union, Pattern, Type, Dict, Tuple, Optional, Sequence, Any, List, overload, override
 
 import getpass
 
@@ -47,8 +47,8 @@ __all__ = [
     'inputUSState',
     'inputYesNo',
     'inputZip',
-    'input_',
-    'print_',
+    'input',
+    'print',
     'validateAddress',
     'validateBool',
     'validateChoice',
@@ -77,15 +77,14 @@ __all__ = [
     'validateYesNo',
 ]
 
-
-def print_(*args):
+def print(*args):
     """
     Chiron std.io.print: alias di print Python
     """
     # Converte tutto in stringa e stampa separato da spazio
-    print(*args)
+    builtins.print(*args)
 
-def input_(prompt: str = "") -> str:
+def input(prompt: str = "") -> str:
     """
     Chiron std.io.input: alias di input Python
     """
@@ -1412,7 +1411,7 @@ def _genericInput(
 
     while True:
         # Get the user input.
-        print(prompt, end="")
+        builtins.print(prompt, end="")
         if passwordMask is None:
             userInput = builtins.input()
         else:

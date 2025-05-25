@@ -65,18 +65,6 @@ class Interpreter:
     def __init__(self):
         self.global_env = Environment()
         self.loaded_modules = {}  # <— inizializza qui, una volta sola
-        self.setup_stdlib()
-
-    def setup_stdlib(self):
-        dev_mode = False  # cambia in False in produzione
-
-        if dev_mode:
-            try:
-                stdio = importlib.import_module('chiron_runtime.stdlib.std.io.io')
-                self.global_env.define_func('print', getattr(stdio, 'print_'))
-                self.global_env.define_func('input', getattr(stdio, 'input_'))
-            except ImportError:
-                pass
 
     def interpret(self, ast):
         entry = None
@@ -136,18 +124,17 @@ class Interpreter:
 
         elif t == 'from_import':
             mod_name = node['module']
-            # assicuriamoci di aver già caricato il modulo via import
+
             if mod_name not in self.loaded_modules:
-                # eseguiamo l’import “normale” sotto il cofano
+
                 fake_node = {'type': 'import', 'module': mod_name, 'alias': mod_name.split('.')[-1]}
                 self.exec_statement(fake_node, env)
-            mod_env = self.loaded_modules[mod_name]
+
             for name, alias in node['names']:
-                # python uses trailing underscore on stdlib side
-                py_name = name + ('_' if name in ('print', 'input') else '')
-                obj = getattr(importlib.import_module(
-                    'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-                ), py_name)
+
+                obj = getattr(
+                    importlib.import_module('chiron_runtime.stdlib.' + mod_name.replace('.', '.')),
+                    name )
                 if callable(obj):
                     env.define_func(alias or name, obj)
                 else:
@@ -281,8 +268,16 @@ class Interpreter:
 
         elif t == 'call_callable':
             func = env.get_func(node['name'])
-            args = [self.eval_expression(arg, env) for arg in node['args']]
-            return func(*args)
+            pos_args = []
+            kw_args = {}
+            for arg in node['args']:
+                if arg.get('type') == 'kwarg':
+                    kw_args[arg['key']] = self.eval_expression(arg['value'], env)
+
+                else:
+                    pos_args.append(self.eval_expression(arg, env))
+
+            return func(*pos_args, **kw_args)
 
         else:
             raise RuntimeError(f"Unknown expression type {t}")

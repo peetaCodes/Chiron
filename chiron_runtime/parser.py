@@ -199,20 +199,24 @@ class Parser:
             names = []
             while True:
                 name = self.current().value
-                print(name)
                 as_alias = None
                 if self.current().type == 'ID' and self.current().value == 'as':
                     self.advance()
                     as_alias = self.expect('ID').value
-                names.append( (name, as_alias) )
+
                 if self.current().type == 'COMMA':
                     self.advance()
                     continue
-                break
 
-        self.advance()
+                if self.current().type == 'SEMICOLON':
+                    break
 
-        self.expect('SEMICOLON')
+                self.advance()
+                print(name, as_alias)
+                names.append((name, as_alias))
+
+            print(self.current(), names)
+
         return {
             'type':    'from_import',
             'module':  module_name,
@@ -392,9 +396,20 @@ class Parser:
                 self.advance()
                 args = []
                 while self.current().type != 'RPAREN':
-                    args.append(self.parse_expression())
+                    if self.current().type == 'ID' and self.tokens[self.pos + 1].type == 'EQUAL':
+                        # keyword argument
+                        key = self.current().value
+                        self.advance()  # consume ID
+                        self.expect('EQUAL')
+                        val = self.parse_expression()
+                        args.append({'type': 'kwarg', 'key': key, 'value': val})
+                    else:
+                        # positional argument
+                        args.append(self.parse_expression())
                     if self.current().type == 'COMMA':
                         self.advance()
+                    else:
+                        break
                 self.expect('RPAREN')
                 return {'type':'call_callable','name':name,'args':args}
             return {'type':'identifier','name':name}
