@@ -2,9 +2,7 @@ import os
 from chiron_runtime.lexer import Lexer
 from chiron_runtime.parser import Parser
 
-import importlib
-
-#TODO: fix the 'maximum recoursion depth exceeded'
+STDLIB_FOLDER = 'chiron_runtime.stdlib.'
 
 class RuntimeError(Exception):
     pass
@@ -61,6 +59,11 @@ class ReturnSignal(Exception):
     def __init__(self, value):
         self.value = value
 
+class BreakSignal(Exception): pass
+
+class ContinueSignal(Exception): pass
+
+
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
@@ -102,44 +105,15 @@ class Interpreter:
     def exec_statement(self, node, env):
         t = node['type']
 
-        if t == 'import':
-            mod_name = node['module']  # es. "std.io"
-            alias = node.get('alias') or mod_name.split('.')[-1]
-            # se l’abbiamo già caricato, lo riutilizziamo
-            if mod_name in self.loaded_modules:
-                env.define_module(alias, self.loaded_modules[mod_name])
-                return None
+        if node['type'] == 'import':
+            for module_name in node['modules']:
+                module = __import__(module_name)
+                env.define_var(node['module'].replace(STDLIB_FOLDER,''), module)
 
-            # altrimenti lo carichiamo
-            py_mod_path = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
-            module = importlib.import_module(py_mod_path)
-
-            # creiamo un nuovo Environment per il modulo
-            mod_env = Environment()
-            # (eventualmente potresti eseguire in mod_env eventuali init del modulo .chy,
-            #  ma per la stdlib python basta import)
-            self.loaded_modules[mod_name] = mod_env
-            env.define_module(alias, mod_env)
-            return None
-
-        elif t == 'from_import':
-            mod_name = node['module']
-
-            if mod_name not in self.loaded_modules:
-
-                fake_node = {'type': 'import', 'module': mod_name, 'alias': mod_name.split('.')[-1]}
-                self.exec_statement(fake_node, env)
-
-            for name, alias in node['names']:
-
-                obj = getattr(
-                    importlib.import_module('chiron_runtime.stdlib.' + mod_name.replace('.', '.')),
-                    name )
-                if callable(obj):
-                    env.define_func(alias or name, obj)
-                else:
-                    env.define_var(alias or name, obj)
-            return None
+        elif node['type'] == 'from_import':
+            module = __import__(node['module'], fromlist=node['names'])
+            for name in node['names']:
+                env.define_func(name, getattr(module, name))
 
         elif t == 'declaration':
             val = self.eval_expression(node['value'], env)
@@ -200,21 +174,37 @@ class Interpreter:
 
         elif t == 'while':
             while self.eval_expression(node['condition'], env):
-                for stmt in node['body']:
-                    self.safe_execute(stmt, env)
+                try:
+                    for stmt in node['body']:
+                        self.safe_execute(stmt, env)
+                except BreakSignal:
+                    break
+                except ContinueSignal:
+                    continue
 
         elif t == 'for':
             self.exec_statement(node['init'], env)
             while self.eval_expression(node['condition'], env):
-                for stmt in node['body']:
-                    self.safe_execute(stmt, env)
-                # l'aggiornamento può essere un'espressione standalone
+                try:
+                    for stmt in node['body']:
+                        self.safe_execute(stmt, env)
+                except BreakSignal:
+                    break
+                except ContinueSignal:
+                    pass
                 self.exec_statement({'type': 'expr_stmt', 'expr': node['update']}, env)
 
         elif t == 'expr_stmt':
             # espressione standalone terminata da ';'
             self.eval_expression(node['expr'], env)
             return None
+
+        elif t == 'break':
+            raise BreakSignal()
+
+        elif t == 'continue':
+            raise ContinueSignal()
+
 
         else:
             raise RuntimeError(f"Unknown statement type: {t}")
@@ -227,6 +217,18 @@ class Interpreter:
 
         elif t == 'identifier':
             return env.get_var(node['name'])
+
+        elif t == 'binary_logical_op':
+            left = self.eval_expression(node['left'], env)
+            if node['op'] == 'or':
+                return left or self.eval_expression(node['right'], env)
+            elif node['op'] == 'and':
+                return left and self.eval_expression(node['right'], env)
+            else:
+                raise RuntimeError(f"Unknown logical operator {node['op']}")
+
+        elif t == 'unary_logical_op':
+            return not self.eval_expression(node['expr'], env)
 
         elif t == 'binary_op':
             left = self.eval_expression(node['left'], env)

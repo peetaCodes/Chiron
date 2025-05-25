@@ -1,5 +1,13 @@
+import os
+
 from chiron_runtime.lexer import Token
 import importlib
+
+STDLIB_FOLDER     = 'chiron_runtime.stdlib.'
+EXTENTIONS_FOLDER = 'chiron_runtime.extentions'
+
+STDLIB_PATH       = f"{os.getcwd()}/{STDLIB_FOLDER    .replace('.','/')}"
+EXTENTIONS_PATH   = f"{os.getcwd()}/{EXTENTIONS_FOLDER.replace('.','/')}"
 
 class SyntaxError(Exception):
     pass
@@ -52,6 +60,16 @@ class Parser:
 
     def parse_statement(self):
         tok = self.current()
+
+        if tok.type == 'ID' and tok.value == 'break':
+            self.advance()
+            self.expect('SEMICOLON')
+            return {'type': 'break'}
+
+        if tok.type == 'ID' and tok.value == 'continue':
+            self.advance()
+            self.expect('SEMICOLON')
+            return {'type': 'continue'}
 
         # 1) keyword dispatch
         if tok.type == 'ID' and tok.value in self.stmt_parsers:
@@ -154,55 +172,69 @@ class Parser:
 
     # ——— Import / From-Import ———
 
-    def parse_import(self):
-        # import modulo [as alias] ;
+    def _getModuleName(self):
         self.expect('ID')  # 'import'
         module_name = self.expect('ID').value  # es. std
-        # supporta nested modules es. std.io
         while self.current().type == 'DOT':
             self.advance()
             module_name += '.' + self.expect('ID').value
 
-        alias = None
-        if self.current().type == 'ID' and self.current().value == 'as':
+        print(os.listdir(STDLIB_PATH))
+        if module_name in os.listdir(STDLIB_PATH):
+            module_name = STDLIB_FOLDER + module_name
+        if module_name in os.listdir(STDLIB_PATH):
+            module_name = EXTENTIONS_FOLDER + module_name
+
+        return module_name
+
+    def parse_import(self):
+        modules = []
+        while True:
+            module_name = self._getModuleName()
+
+            alias = module_name;
+            if self.current().type == 'ID' and self.current().value == 'as':
+                self.advance()
+                alias = self.expect('ID').value
+
+            modules.append((module_name, alias))
+
             self.advance()
-            alias = self.expect('ID').value
 
-        self.expect('SEMICOLON')
-        return {
-            'type':        'import',
-            'module':      module_name,
-            'alias':       alias
-        }
+            if self.current().type == 'COMMA':
+                continue
 
-    def parse_from_import(self):
-        # from modulo import name [, name2, ...] [as alias] ;
-        self.expect('ID')  # 'from'
-        module_name:str = self.expect('ID').value
-        while self.current().type == 'DOT':
-            self.advance()
-            module_name += '.' + self.expect('ID').value
-            module_name += module_name.replace('std','')
-
+            elif self.current().type == 'SEMICOLON':
+                break
 
         self.advance()
 
-        names = []
+        return {
+            'type':        'import',
+            'modules':      modules,
+            'alias':        alias
+        }
+
+    def parse_from_import(self):
+        module_name = self._getModuleName()
+
+        self.advance()
 
         if  self.current().type == 'STAR':
-            module = importlib.import_module('chiron_runtime.stdlib.'+module_name)
+            module = importlib.import_module(module_name)
             objects = module.__all__
             names = [(x, x) for x in objects]
 
+            self.advance()
 
         elif self.current().type == 'ID':
             names = []
             while True:
                 name = self.current().value
-                as_alias = None
+                alias = name
                 if self.current().type == 'ID' and self.current().value == 'as':
                     self.advance()
-                    as_alias = self.expect('ID').value
+                    alias = self.expect('ID').value
 
                 if self.current().type == 'COMMA':
                     self.advance()
@@ -212,10 +244,11 @@ class Parser:
                     break
 
                 self.advance()
-                print(name, as_alias)
-                names.append((name, as_alias))
+                names.append(alias)
 
-            print(self.current(), names)
+            self.advance()
+
+        self.advance()
 
         return {
             'type':    'from_import',

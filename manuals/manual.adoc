@@ -484,6 +484,16 @@ print( operazione(3, 4) );  # Output: 12
 
 Questa caratteristica abilita l’uso di funzioni di ordine superiore e apre la strada alla programmazione funzionale.
 
+È infatti possibile utilizzare le variabili callable come lambda:
+
+[source, cpp]
+----
+callable x(auto argument_a) -> str {return "this is like a lamda!"};
+
+callable y() -> char;
+y = {return 'y'}; # assegnamento tardo
+----
+
 == 7. Classi e oggetti
 
 === 7.1 Dichiarazione di classi
@@ -791,7 +801,6 @@ import std.io # importa anche custom-pyinputplus e custom-pysimplevalidate
 from std.io import print, input
 ----
 
-
 === 11.2 Gestione dei file: lettura, scrittura, apertura
 
 Chiron supporta la gestione dei file tramite l'interfaccia `file`, presente nel modulo `std.fs`.
@@ -892,25 +901,12 @@ Il REPL è pensato per esperimenti rapidi, test e apprendimento interattivo.
 
 == 13. Estensioni future
 
-=== 13.1 Lambda e funzioni anonime
-Chiron prevede di integrare nel prossimo futuro il supporto a funzioni anonime (lambda), per migliorare la concisione e la flessibilità del codice. Le lambda permetteranno di definire funzioni inline, senza dover creare dichiarazioni formali, facilitando la programmazione funzionale e la scrittura di callback o funzioni di ordine superiore.
-
-Sintassi proposta:
-
-`lambda (parametri) : espressione`
-
-Esempio
-[source, cpp]
-----
-auto somma = lambda (a, b) : a + b;
-----
-
-=== 13.2 Meta-programmazione
+=== 13.1 Meta-programmazione
 Una delle direzioni evolutive di Chiron riguarda la meta-programmazione, cioè la possibilità di scrivere codice che genera o manipola altro codice a tempo di compilazione o esecuzione.
 
 Questo permetterà di introdurre macro più potenti e generiche, sistemi di riflessione limitati e template evoluti, con l’obiettivo di mantenere però la semplicità e la chiarezza del linguaggio.
 
-=== 13.3 Supporto a modelli funzionali o concorrenti
+=== 13.2 Supporto a modelli funzionali o concorrenti
 Chiron intende esplorare in futuro modelli di programmazione funzionale e concorrente, per adattarsi alle esigenze moderne.
 
 In particolare, si valutano:
