@@ -230,17 +230,21 @@ class Interpreter:
         elif t == 'identifier':
             return env.get_var(node['name'])
 
-        elif t == 'binary_logical_op':
-            left = self.eval_expression(node['left'], env)
-            if node['op'] == 'or':
-                return left or self.eval_expression(node['right'], env)
-            elif node['op'] == 'and':
-                return left and self.eval_expression(node['right'], env)
-            else:
-                raise RuntimeError(f"Unknown logical operator {node['op']}")
 
-        elif t == 'unary_logical_op':
-            return not self.eval_expression(node['expr'], env)
+        elif t == 'logic':
+            left = self.eval_expression(node['left'], env)
+            right = self.eval_expression(node['right'], env)
+
+            if node['op'] == 'and':
+                return left and right
+            else:  # 'or'
+                return left or right
+
+
+        elif t == 'unary_logic':
+            val = self.eval_expression(node['expr'], env)
+            # 'not' ha sempre booleana semantica
+            return not val
 
         elif t == 'binary_op':
             left = self.eval_expression(node['left'], env)
@@ -279,7 +283,6 @@ class Interpreter:
                 env.set_var(name, old - 1)
                 return old
             raise RuntimeError(f"Unknown unary op {node['op']}")
-
 
         elif t == 'call_callable':
             func = env.get_func(node['name'])

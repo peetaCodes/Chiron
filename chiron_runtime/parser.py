@@ -303,34 +303,42 @@ class Parser:
 
     def parse_or(self):
         node = self.parse_and()
-        while self.current().type=='ID' and self.current().value=='or':
-            op = self.current().value; self.advance()
+        while self.current().type == 'ID' and self.current().value == 'or':
+            op_tok = self.current()
+            self.advance()
             right = self.parse_and()
-            node = {'type':'binary_op','op':op,'left':node,'right':right}
+            node = {'type': 'logic', 'op': 'or', 'left': node, 'right': right}
         return node
 
     def parse_and(self):
-        node = self.parse_equality()
-        while self.current().type=='ID' and self.current().value=='and':
-            op = self.current().value; self.advance()
-            right = self.parse_equality()
-            node = {'type':'binary_op','op':op,'left':node,'right':right}
+        node = self.parse_not()
+        while self.current().type == 'ID' and self.current().value == 'and':
+            op_tok = self.current()
+            self.advance()
+            right = self.parse_not()
+            node = {'type': 'logic', 'op': 'and', 'left': node, 'right': right}
         return node
 
-    def parse_equality(self):
-        node = self.parse_comparison()
-        while self.current().type in ('EQ','NE'):
-            op = self.current().value; self.advance()
-            right = self.parse_comparison()
-            node = {'type':'binary_op','op':op,'left':node,'right':right}
-        return node
+    def parse_not(self):
+        if self.current().type == 'ID' and self.current().value == 'not':
+            self.advance()
+            expr = self.parse_not()
+            return {'type': 'unary_logic', 'op': 'not', 'expr': expr}
+        return self.parse_comparison()
 
     def parse_comparison(self):
         node = self.parse_add_sub()
-        while self.current().type in ('LT','GT','LE','GE','EQEQ','NEQ'):
-            op = self.current().value; self.advance()
+        # includi le sigle esatte che il lexer restituisce
+        while self.current().type in ('LT', 'GT', 'LE', 'GE', 'EQ', 'NE'):
+            op_tok = self.current()
+            self.advance()
             right = self.parse_add_sub()
-            node = {'type':'binary_op','op':op,'left':node,'right':right}
+            node = {
+                'type': 'binary_op',
+                'op': op_tok.value,
+                'left': node,
+                'right': right
+            }
         return node
 
     def parse_add_sub(self):
