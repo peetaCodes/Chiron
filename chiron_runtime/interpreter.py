@@ -2,6 +2,8 @@ import os
 from chiron_runtime.lexer import Lexer
 from chiron_runtime.parser import Parser
 
+import importlib
+
 STDLIB_FOLDER = 'chiron_runtime.stdlib.'
 
 class RuntimeError(Exception):
@@ -105,15 +107,25 @@ class Interpreter:
     def exec_statement(self, node, env):
         t = node['type']
 
-        if node['type'] == 'import':
-            for module_name in node['modules']:
-                module = __import__(module_name)
-                env.define_var(node['module'].replace(STDLIB_FOLDER,''), module)
+        if t == 'import':
+            # gestisce più moduli
+            for mod_name, alias in node['modules']:
+                alias = alias or mod_name.split('.')[-1]
+                full_py_mod = 'chiron_runtime.stdlib.' + mod_name.replace('.', '.')
+                module = importlib.import_module(full_py_mod)
+                env.define_var(alias, module)
+            return None
 
-        elif node['type'] == 'from_import':
-            module = __import__(node['module'], fromlist=node['names'])
-            for name in node['names']:
-                env.define_func(name, getattr(module, name))
+        elif t == 'from_import':
+            full_py_mod = 'chiron_runtime.stdlib.' + node['module'].replace('.', '.')
+            module = importlib.import_module(full_py_mod)
+            for name, alias in node['names']:
+                obj = getattr(module, name)
+                if callable(obj):
+                    env.define_func(alias or name, obj)
+                else:
+                    env.define_var(alias or name, obj)
+            return None
 
         elif t == 'declaration':
             val = self.eval_expression(node['value'], env)
@@ -268,54 +280,22 @@ class Interpreter:
                 return old
             raise RuntimeError(f"Unknown unary op {node['op']}")
 
+
         elif t == 'call_callable':
             func = env.get_func(node['name'])
-            pos_args = []
+            # 1) positional args
+            pos_args = [ self.eval_expression(a, env)
+                         for a in node.get('args', []) ]
+            # 2) keyword args (dal parser, campo 'kwargs')
             kw_args = {}
-            for arg in node['args']:
-                if arg.get('type') == 'kwarg':
-                    kw_args[arg['key']] = self.eval_expression(arg['value'], env)
-
-                else:
-                    pos_args.append(self.eval_expression(arg, env))
+            for key, val_node in node.get('kwargs', {}).items():
+                kw_args[key] = self.eval_expression(val_node, env)
 
             return func(*pos_args, **kw_args)
 
+
         else:
             raise RuntimeError(f"Unknown expression type {t}")
-
-    def handle_import(self, node, env):
-        modname = node['module']
-        alias   = node['alias']
-        # cerchiamo foo.chy in std/ o nella cwd
-        path = f"std/{modname}.chy"
-        if not os.path.exists(path):
-            path = f"{modname}.chy"
-        with open(path) as f:
-            code = f.read()
-        # lex + parse + interpret in un env separato
-        mod_env = Environment()
-        mod_ast = Parser(Lexer(code).tokenize()).parse()
-        Interpreter()._interpret_in_env(mod_ast, mod_env)
-        env.define_module(alias, mod_env)
-
-    def handle_from_import(self, node, env):
-        mod = env.get_module(node['module'])
-        for name in node['names']:
-            if name == '*':
-                # importa tutto: variabili + funzioni
-                for v, val in mod.vars.items():
-                    env.define_var(v, val)
-                for f, fn in mod.funcs.items():
-                    env.define_func(f, fn)
-            else:
-                # importa solo name
-                if name in mod.vars:
-                    env.define_var(name, mod.vars[name])
-                elif name in mod.funcs:
-                    env.define_func(name, mod.funcs[name])
-                else:
-                    raise RuntimeError(f"No symbol '{name}' in module '{node['module']}'")
 
     def _interpret_in_env(self, ast, env):
         # versione interna di interpret che usa l'env fornito
