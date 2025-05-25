@@ -484,6 +484,16 @@ print( operazione(3, 4) );  # Output: 12
 
 Questa caratteristica abilita l’uso di funzioni di ordine superiore e apre la strada alla programmazione funzionale.
 
+È infatti possibile utilizzare le variabili callable come lambda:
+
+[source, cpp]
+----
+callable x(auto argument_a) -> str {return "this is like a lamda!"};
+
+callable y() -> char;
+y = {return 'y'}; # assegnamento tardo
+----
+
 == 7. Classi e oggetti
 
 === 7.1 Dichiarazione di classi
@@ -709,6 +719,9 @@ I file `.chy` possono essere importati in altri script, rendendo disponibili le 
 
 Per importare un modulo, si usa la parola chiave `import`. Il nome del file (senza estensione `.chy`) è usato come nome del modulo.
 
+Chrion inoltre supporta l'importazione di qualsiasi libreria python, anche se installata sotto _virtual enviroment_.
+Basta installare una qualsiasi libreria tramite il classico 'pip install' e importarla direttamente dentro chiron
+
 [source, cpp]
 ----
 import util;
@@ -716,10 +729,23 @@ import util;
 int risultato = util : somma(4, 5);
 print(risultato);  # stampa: 9
 ----
+.Installazione standard libreria python
+[source, bash]
+----
+pip install requests
+----
+.Importazione libreria python
+[source, python]
+----
+import requests;
+
+auto res = get("https://httpbin.org/get");
+print(res.text);
+----
 
 È possibile rinominare un modulo al momento dell’importazione con `as`.
 
-[source, cpp]
+[source, python]
 ----
 import util as u;
 
@@ -730,26 +756,26 @@ L’importazione avviene in fase di esecuzione e si basa sul percorso relativo d
 
 === 10.3 Libreria standard prevista
 
-La libreria standard di Chiron fornisce moduli integrati che facilitano operazioni comuni. I moduli più importanti includono:
+La libreria standard chrion è *molto limitata* in quanto essendo possibile importare qualsiasi modulo della _libreria standard python_ (*PSL*) non c'è una grande necessità di re-implementare le stesse funzionalità.
 
-* `std.io` – Input/output (es. `print`, `input`)
-* `std.math` – Funzioni matematiche comuni (`abs`, `sqrt`, `pow`)
-* `std.fs` – Gestione file (lettura, scrittura) e formati comuni come JSON, SQL etc.
-* `std.str` – Manipolazione di stringhe
-* `std.time` – Gestione del tempo e delle date
-* `std.sys` – Informazioni e comandi di sistema
+Attualmente include solo wrapper dei metodi `builtis` di python, che sarebbero altrimenti tediosi, ambigui o impossibili da importare
 
-Esempio di utilizzo di una funzione dalla libreria standard:
+La chiron stdlib contiene quindi:
 
+* `std.io` – Standard I/O e validazione avanzata dell' input tramite _custom-pyinputplus_ footnote:[fork della libreria 'pyinputplus' creata da alSweigart. Fork di peetaCodes, autore di chiron e di questo manuale]
+* `std.fs` – Wrapper dei metodi di lettura/scrittura file python
+
+
+.Esempio di utilizzo di una funzione dalla PSL:
 [source, cpp]
 ----
-import std.math;
+import math;
 
-float radice = std.math : sqrt(16.0);
+float radice = math : sqrt(16.0);
 print(radice);  # stampa: 4.0
 ----
 
-La libreria standard di Chiron è progettata per essere minimale ma estendibile. Nuovi moduli possono essere installati e importati come qualsiasi altro file `.chy`.
+Nuovi moduli possono essere installati e importati come qualsiasi altro file `.chy`.
 
 == 11. Input/Output
 
@@ -757,31 +783,29 @@ La libreria standard di Chiron è progettata per essere minimale ma estendibile.
 
 Chiron fornisce funzioni integrate per l'interazione con l'utente tramite console.
 
-==== `print(...)`
+Per importare le funzioni print() e input() ci sono due modi:
 
-Stampa uno o più valori sulla console, separati da uno spazio.
+* `Tramite Python Standard Library:` Bisogna importare il modulo `builtins` della PSL e con esso anche le amate 'print' e 'input'. *Questo è fortemente sconsigliato*
+* `Tramite Chiron Standard Library:` Bisogna importare il modulo `std.io` della chiron stdlib. *Metodo approvato*
 
-[source, cpp]
+.Importazione tramite *PSL*
+[source, python]
 ----
-print("Hello, World!");
-print("Valore:", 42, true);
+import builtins # fortemente sconsigliato in quanto sovrascrive i builtins di chirion
+from builtins import print, input # sconsigliato in quanto ambiguo, ma senza override
 ----
-
-*Supporta tipi primitivi e stringhe, e converte automaticamente i tipi in formato testuale.*
-
-==== `input(prompt: str) -> str`
-
-Legge una riga da input utente e la restituisce come stringa.
-
-[source, cpp]
+.Importazione tramite *chiron stdlib*
+[source, python]
 ----
-str nome = input("Inserisci il tuo nome: ");
-print("Benvenuto", nome);
+import std.io # importa anche custom-pyinputplus e custom-pysimplevalidate
+from std.io import print, input
 ----
 
 === 11.2 Gestione dei file: lettura, scrittura, apertura
 
 Chiron supporta la gestione dei file tramite l'interfaccia `file`, presente nel modulo `std.fs`.
+
+NOTE: È possibile usare la PSL usando `import _pyio`. Resta però una pratica sconsigliata
 
 [source, cpp]
 ----
@@ -799,7 +823,7 @@ f : close();
 - `"a"` – Aggiunta (scrive in fondo al file)
 - `"rw"` – Lettura e scrittura
 
-Per ognuno di questi sistemi esiste le varianti più comuni come 'b' per lettura di tipo bytes (esempio 'rb' per lettura dei bytes si un file)
+Per ognuno di questi sistemi esiste le varianti più comuni come `'b'` per lettura di tipo bytes (esempio 'rb' per lettura dei bytes si un file)
 
 *Metodi disponibili su oggetti `file`*:
 
@@ -877,25 +901,12 @@ Il REPL è pensato per esperimenti rapidi, test e apprendimento interattivo.
 
 == 13. Estensioni future
 
-=== 13.1 Lambda e funzioni anonime
-Chiron prevede di integrare nel prossimo futuro il supporto a funzioni anonime (lambda), per migliorare la concisione e la flessibilità del codice. Le lambda permetteranno di definire funzioni inline, senza dover creare dichiarazioni formali, facilitando la programmazione funzionale e la scrittura di callback o funzioni di ordine superiore.
-
-Sintassi proposta:
-
-`lambda (parametri) : espressione`
-
-Esempio
-[source, cpp]
-----
-auto somma = lambda (a, b) : a + b;
-----
-
-=== 13.2 Meta-programmazione
+=== 13.1 Meta-programmazione
 Una delle direzioni evolutive di Chiron riguarda la meta-programmazione, cioè la possibilità di scrivere codice che genera o manipola altro codice a tempo di compilazione o esecuzione.
 
 Questo permetterà di introdurre macro più potenti e generiche, sistemi di riflessione limitati e template evoluti, con l’obiettivo di mantenere però la semplicità e la chiarezza del linguaggio.
 
-=== 13.3 Supporto a modelli funzionali o concorrenti
+=== 13.2 Supporto a modelli funzionali o concorrenti
 Chiron intende esplorare in futuro modelli di programmazione funzionale e concorrente, per adattarsi alle esigenze moderne.
 
 In particolare, si valutano:
