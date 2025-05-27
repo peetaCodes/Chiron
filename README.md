@@ -1,4 +1,3 @@
-
 > [!WARNING] 
 > Questo è il repository per la versione di chiron **interpretata in python**.  
 > Per visualizzare la versione interpretata in C++ oppure la versione compilata, cambia repository
