@@ -1,0 +1,3 @@
+callable somma(int a, int b) -> int {
+    return a + b;
+}
