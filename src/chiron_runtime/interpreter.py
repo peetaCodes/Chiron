@@ -1,7 +1,3 @@
-import os
-from chiron_runtime.lexer import Lexer
-from chiron_runtime.parser import Parser
-
 import importlib
 
 STDLIB_FOLDER = 'chiron_runtime.stdlib.'
@@ -67,9 +63,11 @@ class ContinueSignal(Exception): pass
 
 
 class Interpreter:
-    def __init__(self):
+    def __init__(self, devMode=False):
         self.global_env = Environment()
         self.loaded_modules = {}  # <— inizializza qui, una volta sola
+
+        self.devMode = devMode
 
     def interpret(self, ast):
         entry = None
@@ -94,7 +92,7 @@ class Interpreter:
                 if stmt['type'] not in ('declaration_callable', 'import', 'from_import'):
                     self.exec_statement(stmt, self.global_env)
 
-        self.dump_env()
+        if self.devMode: self.dump_env()
 
     def safe_execute(self, node, env):
         try:
