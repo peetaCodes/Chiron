@@ -7,11 +7,13 @@ import re
 import sys
 import time
 
-from typing import Union, Pattern, Type, Dict, Tuple, Optional, Sequence, Any, List, overload, override
+from typing import Union, Pattern, Type, Dict, Tuple, Optional, Sequence, Any, List, Callable, overload
 
 import getpass
 
 import builtins
+
+from platform import system
 
 __all__ = [
     'PyInputPlusException',
@@ -93,6 +95,8 @@ def input(prompt: str = "") -> str:
 """
 PySimpleValidate
 """
+
+USER_OS = system().replace('Darwin', 'macOS')
 
 RE_PATTERN_TYPE = type(re.compile(""))
 
@@ -248,10 +252,6 @@ class PyInputPlusException(Exception):
 
     pass
 
-class ValidationException(PyInputPlusException):
-
-    pass
-
 class TimeoutException(Exception):
 
     pass
@@ -284,8 +284,8 @@ def _getStrippedValue(value, strip):
     return value
 
 
-def _raiseValidationException(standardExcMsg, customExcMsg=None, values=[], exception=None):
-    # type: (str, Optional[str]) -> None
+def _raiseValidationException(standardExcMsg, customExcMsg=None, values=(), exception=None):
+    # type: (str, Optional[str], tuple|list, Optional[str]) -> None
     """Raise ValidationException with standardExcMsg, unless customExcMsg is specified."""
     if customExcMsg is None:
         raise ValidationException(str(standardExcMsg))
@@ -304,7 +304,7 @@ def _raiseValidationException(standardExcMsg, customExcMsg=None, values=[], exce
         raise ValidationException(str(finalMsg))
 
 
-def _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList=None, blackList=None, excMsg=None):
+def _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList=None, blackList=None, allowFirst=True, whiteFirst=True, regexFirst=False, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> Tuple[bool, str]
     """Returns a tuple of two values: the first is a bool that tells the caller
     if they should immediately return True, the second is a new, possibly stripped
@@ -327,61 +327,90 @@ def _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteLi
     # Validate for blank values.
     if not blank and value == "":
         # value is blank but blanks aren't allowed.
-        _raiseValidationException(("Blank values are not allowed."), excMsg)
+        _raiseValidationException("Blank values are not allowed.", excMsg)
     elif blank and value == "":
         return (
             True,
             value,
         )  # The value is blank and blanks are allowed, so return True to indicate that the caller should return value immediately.
 
-    # NOTE: We check if something matches the allow-list first, then we check the block-list second.
 
-    # NOTE: The same logic is applied to the white-list and black-list, except they are checked first
+    def listCheck():
+        """Checks The Black/White lists"""
+        if whiteFirst:
+            if whiteList is not None:
+                for allowElement in whiteList:
+                    if value in allowElement:
+                        return (
+                            True,
+                            value,
+                        )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
 
-    # Check the whiteList.
-    if whiteList is not None:
-        for allowElement in whiteList:
-            if value in allowElement:
-                return (
-                    True,
-                    value,
-                )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
+        if blackList is not None:
+            for blockElement in blackList:
+                if value in blockElement:
+                    _raiseValidationException('The value is in a black-list', excMsg, [value])  # value is on a blocklist
+                    
+        if not whiteList:
+            if whiteList is not None:
+                for allowElement in whiteList:
+                    if value in allowElement:
+                        return (
+                            True,
+                            value,
+                        )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
 
-    # Check the blackList.
-    if blackList is not None:
-        for blockElement in blackList:
-            if value in blockElement:
-                _raiseValidationException('The value is in a black-list', excMsg, [value])  # value is on a blocklist
 
-    # Check the allowRegexes.
-    if allowRegexes is not None:
-        for allowRegex in allowRegexes:
-            if isinstance(allowRegex, RE_PATTERN_TYPE):
-                if allowRegex.search(value) is not None:
-                    return (
-                        True,
-                        value,
-                    )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
-            else:
-                if re.search(allowRegex, value) is not None:
-                    return (
-                        True,
-                        value,
-                    )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
+    def regexCheck():
+        if allowFirst:
+            if allowRegexes is not None:
+                for allowRegex in allowRegexes:
+                    if isinstance(allowRegex, RE_PATTERN_TYPE):
+                        if allowRegex.search(value) is not None:
+                            return (
+                                True,
+                                value,
+                            )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
+                    else:
+                        if re.search(allowRegex, value) is not None:
+                            return (
+                                True,
+                                value,
+                            )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
 
-    # Check the blockRegexes.
-    if blockRegexes is not None:
-        for blocklistRegexItem in blockRegexes:
-            if isinstance(blocklistRegexItem, (str, RE_PATTERN_TYPE)):
-                regex, response = blocklistRegexItem, DEFAULT_BLOCKLIST_RESPONSE
-            else:
-                # NOTE: blockRegexes is potentially so many types at runtime, so ignore the type hint error on this next line:
-                regex, response = blocklistRegexItem  # type: ignore
+        if blockRegexes is not None:
+            for blocklistRegexItem in blockRegexes:
+                if isinstance(blocklistRegexItem, (str, RE_PATTERN_TYPE)):
+                    regex, response = blocklistRegexItem, DEFAULT_BLOCKLIST_RESPONSE
+                else:
+                    # NOTE: blockRegexes is potentially so many types at runtime, so ignore the type hint error on this next line:
+                    regex, response = blocklistRegexItem  # type: ignore
 
-            if isinstance(regex, RE_PATTERN_TYPE) and regex.search(value) is not None:
-                _raiseValidationException(response, excMsg, [value])  # value is on a blocklist
-            elif re.search(regex, value) is not None:
-                _raiseValidationException(response, excMsg, [value])  # value is on a blocklist
+                if isinstance(regex, RE_PATTERN_TYPE) and regex.search(value) is not None:
+                    _raiseValidationException(response, excMsg, [value])  # value is on a blocklist
+                elif re.search(regex, value) is not None:
+                    _raiseValidationException(response, excMsg, [value])  # value is on a blockli
+                    
+        if not allowFirst:
+            if allowRegexes is not None:
+                for allowRegex in allowRegexes:
+                    if isinstance(allowRegex, RE_PATTERN_TYPE):
+                        if allowRegex.search(value) is not None:
+                            return (
+                                True,
+                                value,
+                            )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
+                    else:
+                        if re.search(allowRegex, value) is not None:
+                            return (
+                                True,
+                                value,
+                            )  # The value is in the allowlist, so return True to indicate that the caller should return value immediately.
+                    
+    
+    if not regexFirst: listCheck()
+    regexCheck()
+    if regexFirst: listCheck() # if we check tha black first we didn't check the lists in the first call, so we check them now
 
     return (
         False,
@@ -460,18 +489,18 @@ def _validateParamsFor_validateNum(min=None, max=None, lessThan=None, greaterTha
     if (max is not None) and (greaterThan is not None) and (max <= greaterThan):
         raise PySimpleValidateException("the max argument must be greater than the greaterThan argument")
 
-    for name, val in (("min", min), ("max", max), ("lessThan", lessThan), ("greaterThan", greaterThan)):
+    for name, val in ("min", min, ("max", max), ("lessThan", lessThan), ("greaterThan", greaterThan)):
         if not isinstance(val, (int, float, type(None))):
             raise PySimpleValidateException(name + " argument must be int, float, or NoneType")
 
 
-def validateStr(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateStr(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
 
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=None, blockRegexes=blockRegexes)
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
 
     return value
 
@@ -484,6 +513,9 @@ def validateNum(
     blockRegexes=None,
     whiteList=None,
     blackList=None,
+    allowFirst=None,
+    whiteFirst=None,
+    regexFirst=None,
     _numType="num",
     min=None,
     max=None,
@@ -502,7 +534,7 @@ def validateNum(
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=None, blockRegexes=blockRegexes)
     _validateParamsFor_validateNum(min=min, max=max, lessThan=lessThan, greaterThan=greaterThan)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         # If we can convert value to an int/float, then do so. For example,
         # if an allowlist regex allows '42', then we should return 42 or 42.0.
@@ -525,44 +557,44 @@ def validateNum(
         try:
             numericValue = float(value)  # type: Union[int, float]
         except:
-            _raiseValidationException(("%r is not a number.") % (_errstr(value)), excMsg, [value])
+            _raiseValidationException("%r is not a number." % (_errstr(value)), excMsg, [value])
     elif _numType == "num" and "." not in value:
         # We are expecting a "num" (float or int) type and the user entered an int.
         try:
             numericValue = int(value)
         except:
-            _raiseValidationException(("%r is not a number.") % (_errstr(value)), excMsg, [value])
+            _raiseValidationException("%r is not a number." % (_errstr(value)), excMsg, [value])
     elif _numType == "float":
         try:
             numericValue = float(value)
         except:
-            _raiseValidationException(("%r is not a float.") % (_errstr(value)), excMsg, [value])
+            _raiseValidationException("%r is not a float." % (_errstr(value)), excMsg, [value])
     elif _numType == "int":
         try:
             if float(value) % 1 != 0:
                 # The number is a float that doesn't end with ".0"
-                _raiseValidationException(("%r is not an integer.") % (_errstr(value)), excMsg, [value])
+                _raiseValidationException("%r is not an integer." % (_errstr(value)), excMsg, [value])
             numericValue = int(float(value))
         except:
-            _raiseValidationException(("%r is not an integer.") % (_errstr(value)), excMsg, [value])
+            _raiseValidationException("%r is not an integer." % (_errstr(value)), excMsg, [value])
     else:
         assert False  # This branch should never happen.
 
     # Validate against min argument.
     if min is not None and numericValue < min:
-        _raiseValidationException(("Number must be at minimum %s.") % (min, ), excMsg, [value])
+        _raiseValidationException("Number must be at minimum %s." % (min, ), excMsg, [value])
 
     # Validate against max argument.
     if max is not None and numericValue > max:
-        _raiseValidationException(("Number must be at maximum %s.") % (max, ), excMsg, [value])
+        _raiseValidationException("Number must be at maximum %s." % (max, ), excMsg, [value])
 
     # Validate against max argument.
     if lessThan is not None and numericValue >= lessThan:
-        _raiseValidationException(("Number must be less than %s.") % (lessThan, ), excMsg, [value])
+        _raiseValidationException("Number must be less than %s." % (lessThan, ), excMsg, [value])
 
     # Validate against max argument.
     if greaterThan is not None and numericValue <= greaterThan:
-        _raiseValidationException(("Number must be greater than %s.") % (greaterThan, ), excMsg, [value])
+        _raiseValidationException("Number must be greater than %s." % (greaterThan, ), excMsg, [value])
 
     return numericValue
 
@@ -619,7 +651,7 @@ def validateFloat(
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[int], Optional[int], Optional[int], Optional[int], Optional[str]) -> Union[float, str]
 
 
-    # Even though validateNum *could* return a int, it won't if _numType is 'float', so ignore mypy's complaint:
+    # Even though validateNum *could* return an int, it won't if _numType is 'float', so ignore mypy's complaint:
     return validateNum(
         value=value,
         blank=blank,
@@ -691,6 +723,9 @@ def validateChoice(
     blockRegexes=None,
     whiteList=None,
     blackList=None,
+    allowFirst=None,
+    whiteFirst=None,
+    regexFirst=None,
     numbered=False,
     lettered=False,
     caseSensitive=False,
@@ -718,7 +753,7 @@ def validateChoice(
         # blank needs to be set to True here, otherwise '' won't be accepted as a choice.
         blank = True
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -737,7 +772,7 @@ def validateChoice(
         # Return the original item in strChoices that value has a case-insensitive match with.
         return strChoices[[choice.upper() for choice in strChoices].index(value.upper())]
 
-    _raiseValidationException(("%r is not a valid choice.") % (_errstr(value)), excMsg, [value])
+    _raiseValidationException("%r is not a valid choice." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -768,7 +803,7 @@ def _validateParamsFor__validateToDateTimeFormat(
 
 
 def _validateToDateTimeFormat(
-    value, formats, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None
+    value, formats, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None
 ):
     # type: (str, Union[str, Sequence[str]], bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> Union[datetime.datetime, str]
     # Validate parameters.
@@ -780,7 +815,7 @@ def _validateToDateTimeFormat(
         # Ensure that `formats` is always a sequence of strings:
         formats = [formats]
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         for timeFormat in formats:
             # If value can be converted to a datetime object, convert it.
@@ -797,7 +832,7 @@ def _validateToDateTimeFormat(
         except ValueError:
             continue  # If this format fails to parse, move on to the next format.
 
-    _raiseValidationException(("%r is not a valid time.") % (value, ), excMsg, [value])
+    _raiseValidationException("%r is not a valid time." % (value, ), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -814,16 +849,13 @@ def validateTime(
 ):
     # type: (str, Union[str, Sequence[str]], bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> Union[datetime.time, str]
 
-
-    # TODO - handle this
-
     # Reuse the logic in _validateToDateTimeFormat() for this function.
     try:
         dt = _validateToDateTimeFormat(
             value, formats, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid time.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid time." % (_errstr(value)), excMsg, [value])
 
     # `dt` could be a str if `value` matched one of the `allowRegexes`.
     if isinstance(dt, str):
@@ -851,7 +883,7 @@ def validateDate(
             value, formats, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid date.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid date." % (_errstr(value)), excMsg, [value])
 
     # `dt` could be a str if `value` matched one of the `allowRegexes`.
     if isinstance(dt, str):
@@ -896,30 +928,36 @@ def validateDatetime(
             value, formats, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid date and time.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid date and time." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateFilename(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateFilename(value, os=USER_OS, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
-
-    # TODO: Did I capture the Linux/macOS invalid file characters too, or just Windows's?
-
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
-    if (value != value.strip()) or (any(c in value for c in '\\/:*?"<>|')):
-        _raiseValidationException(("%r is not a valid filename.") % (_errstr(value)), excMsg, [value])
+    validFilename = None
+
+    match os:
+        case 'Windows': validFilename = re.compile(r'^(?!^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$)[^<>:"/\\|?*\s][^<>:"/\\|?*]*[^<>:"/\\|?*\s\.]$')
+        case 'macOS':   validFilename = re.compile(r'^(?!\.{1,2}$)(?!.*:).+$')
+        case 'Linux':   validFilename = re.compile(r'^[^/]{1,255}$')
+
+    if not validFilename: raise PySimpleValidateException(f'The \'os\' argument can only be \'Windows\', \'macOS\' or \'Linux\'; not: \'{os}\'')
+
+    if (value != value.strip()) or len(validFilename.findall(value)) != 1:
+        _raiseValidationException(f"{(_errstr(value))} is not a valid {os} filename.", excMsg, [value])
     return value
 
 
 def validateFilepath(
-    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None
+    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None
 ):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str], bool) -> str
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -929,19 +967,19 @@ def validateFilepath(
         if ":" in value:
             if value.find(":", 2) != -1 or not value[0].isalpha():
                 # For Windows: Colon can only be found at the beginning, e.g. 'C:\', or the first letter is not a letter drive.
-                _raiseValidationException(("%r is not a valid file path.") % (_errstr(value)), excMsg, [value])
-        _raiseValidationException(("%r is not a valid file path.") % (_errstr(value)), excMsg, [value])
+                _raiseValidationException("%r is not a valid file path." % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid file path." % (_errstr(value)), excMsg, [value])
     return value
     raise NotImplementedError()
 
 
-def validateIP(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateIP(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -970,18 +1008,18 @@ def validateIP(value, blank=False, strip=None, allowRegexes=None, blockRegexes=N
             blockRegexes=blockRegexes,
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid IP address.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid IP address." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateIPv4(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateIPv4(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
 
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -998,17 +1036,17 @@ def validateIPv4(value, blank=False, strip=None, allowRegexes=None, blockRegexes
             blockRegexes=blockRegexes,
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid IPv4 address.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid IPv4 address." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateIPv6(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateIPv6(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -1024,18 +1062,18 @@ def validateIPv6(value, blank=False, strip=None, allowRegexes=None, blockRegexes
             blockRegexes=blockRegexes,
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid IPv6 address.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a valid IPv6 address." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateRegex(value, regex, flags=0, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateRegex(value, regex, flags=0, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, Union[str, Pattern], int, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
 
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -1051,43 +1089,43 @@ def validateRegex(value, regex, flags=0, blank=False, strip=None, allowRegexes=N
     if mo is not None:
         return mo.group()
     else:
-        _raiseValidationException(("%r does not match the specified pattern.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r does not match the specified pattern." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateRegexStr(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateRegexStr(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> Union[str, Pattern]
 
 
     # TODO - I'd be nice to check regexes in other languages, i.e. JS and Perl.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
     try:
         return re.compile(value)
     except Exception as ex:
-        _raiseValidationException(("%r is not a valid regular expression: %s") % (_errstr(value), ex), excMsg, [value], ex)
+        _raiseValidationException("%r is not a valid regular expression: %s" % (_errstr(value), ex), excMsg, [value], ex.args[0])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateURL(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateURL(value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> str
 
 
     # Reuse the logic in validateRegex()
     try:
         return validateRegex(
-            value=value, regex=URL_REGEX, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes, whiteList=whiteList, blackList=whiteList,
+            value=value, regex=URL_REGEX, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes, whiteList=whiteList, blackList=blackList,
         )
     except ValidationException:
         # 'localhost' is also an acceptable URL:
         if value == "localhost":
             return "localhost"
 
-        _raiseValidationException(("%r is not a valid URL.") % (value, ), excMsg, [value])
+        _raiseValidationException("%r is not a valid URL." % (value, ), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -1108,7 +1146,7 @@ def validateEmail(value, blank=False, strip=None, allowRegexes=None, blockRegexe
             blackList=blackList,
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid email address.") % (value, ), excMsg, [value])
+        _raiseValidationException("%r is not a valid email address." % (value, ), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -1118,6 +1156,7 @@ def validateYesNo(
     strip=None,
     allowRegexes=None,
     blockRegexes=None,
+    allowFirst=None,
     yesVal="yes",
     noVal="no",
     caseSensitive=False,
@@ -1125,11 +1164,9 @@ def validateYesNo(
 ):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], str, str, bool, Optional[str]) -> str
 
-
-    # Validate parameters. TODO - can probably improve this to remove the duplication.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, excMsg=excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, allowFirst, excMsg=excMsg)
     if returnNow:
         return value
 
@@ -1144,10 +1181,6 @@ def validateYesNo(
     if (yesVal[0] == noVal[0]) or (not caseSensitive and yesVal[0].upper() == noVal[0].upper()):
         raise PySimpleValidateException("first character of yesVal and noVal arguments must be different")
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, excMsg=excMsg)
-    if returnNow:
-        return value
-
     if caseSensitive:
         if value in (yesVal, yesVal[0]):
             return yesVal
@@ -1159,7 +1192,7 @@ def validateYesNo(
         elif value.upper() in (noVal.upper(), noVal[0].upper()):
             return noVal
 
-    _raiseValidationException(("%r is not a valid %s/%s response.") % (_errstr(value), yesVal, noVal), excMsg, [value, yesVal, noVal])
+    _raiseValidationException("%r is not a valid %s/%s response." % (_errstr(value), yesVal, noVal), excMsg, [value, yesVal, noVal])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -1209,7 +1242,7 @@ def validateBool(
             excMsg=excMsg,
         )
     except ValidationException:
-        _raiseValidationException(("%r is not a valid %s/%s response.") % (_errstr(value), trueVal, falseVal), excMsg, [value, trueVal, falseVal])
+        _raiseValidationException("%r is not a valid %s/%s response." % (_errstr(value), trueVal, falseVal), excMsg, [value, trueVal, falseVal])
 
     # Return a bool value instead of a string.
     if result == trueVal:
@@ -1223,7 +1256,7 @@ def validateBool(
 
 
 def validateUSState(
-    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None, returnStateName=False
+    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None, returnStateName=False
 ):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str], bool) -> str
 
@@ -1233,7 +1266,7 @@ def validateUSState(
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -1248,7 +1281,7 @@ def validateUSState(
         else:
             return USA_STATES_REVERSED[value.title()]  # Return abbreviation.
 
-    _raiseValidationException(("%r is not a state.") % (_errstr(value)), excMsg, [value])
+    _raiseValidationException("%r is not a state." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
@@ -1265,7 +1298,7 @@ def validatePhone():
 
 
 def validateMonth(
-    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, monthNames=ENGLISH_MONTHS, excMsg=None
+    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, monthNames=ENGLISH_MONTHS, excMsg=None
 ):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Dict[str, str], Optional[str]) -> str
 
@@ -1275,7 +1308,7 @@ def validateMonth(
     # Validate parameters.
     _validateGenericParameters(blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes)
 
-    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, excMsg)
+    returnNow, value = _prevalidationCheck(value, blank, strip, allowRegexes, blockRegexes, whiteList, blackList, allowFirst, whiteFirst, regexFirst, excMsg)
     if returnNow:
         return value
 
@@ -1289,19 +1322,19 @@ def validateMonth(
 
     # Both month names and month abbreviations will be at least 3 characters.
     if len(value) < 3:
-        _raiseValidationException(("%r is not a month.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a month." % (_errstr(value)), excMsg, [value])
 
     if value[:3].upper() in monthNames.keys():  # check if value is a month abbreviation
         return monthNames[value[:3].upper()]  # It turns out that titlecase is good for all the month.
     elif value.upper() in monthNames.values():  # check if value is a month name
         return value.title()
 
-    _raiseValidationException(("%r is not a month.") % (_errstr(value)), excMsg, [value])
+    _raiseValidationException("%r is not a month." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
 def validateDayOfWeek(
-    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None
+    value, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None
 ):
     # type: (str, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Dict[str, str], Optional[str]) -> str
 
@@ -1320,15 +1353,18 @@ def validateDayOfWeek(
             blockRegexes=blockRegexes,
             whiteList=whiteList,
             blackList=blackList,
+            allowFirst=allowFirst,
+            whiteFirst=whiteFirst,
+            regexFirst=regexFirst,
             monthNames=ENGLISH_DAYS_OF_WEEK,
         )
     except:
         # Replace the exception message.
-        _raiseValidationException(("%r is not a day of the week.") % (_errstr(value)), excMsg, [value])
+        _raiseValidationException("%r is not a day of the week." % (_errstr(value)), excMsg, [value])
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
 
-def validateDayOfMonth(value, year, month, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, excMsg=None):
+def validateDayOfMonth(value, year, month, blank=False, strip=None, allowRegexes=None, blockRegexes=None, whiteList=None, blackList=None, allowFirst=None, whiteFirst=None, regexFirst=None, excMsg=None):
     # type: (str, int, int, bool, Union[None, str, bool], Union[None, Sequence[Union[Pattern, str]]], Union[None, Sequence[Union[Pattern, str, Sequence[Union[Pattern, str]]]]], Optional[str]) -> int
 
     year = int(year)
@@ -1338,25 +1374,23 @@ def validateDayOfMonth(value, year, month, blank=False, strip=None, allowRegexes
     except:
         raise PySimpleValidateException("invalid arguments for year and/or month")
 
-    try:
-        return int(
-            validateInt(
-                value,
-                blank=blank,
-                strip=strip,
-                allowRegexes=allowRegexes,
-                blockRegexes=blockRegexes,
-                whiteList=whiteList,
-                blackList=blackList,
-                min=1,
-                max=daysInMonth,
-            )
+    return int(
+        validateInt(
+            value,
+            blank=blank,
+            strip=strip,
+            allowRegexes=allowRegexes,
+            blockRegexes=blockRegexes,
+            whiteList=whiteList,
+            blackList=blackList,
+            allowFirst=allowFirst,
+            regexFirst=regexFirst,
+            excMsg=("%r is not a day in the month of %s %s." % (_errstr(value), ENGLISH_MONTH_NAMES[month - 1], year)),
+            min=1,
+            max=daysInMonth,
         )
-    except:
-        # Replace the exception message.
-        _raiseValidationException(
-            ("%r is not a day in the month of %s %s.") % (_errstr(value), ENGLISH_MONTH_NAMES[month - 1], year), excMsg, [value, ENGLISH_MONTH_NAMES[month - 1], year]
-        )
+    )
+
     assert False, "The execution reached this point, even though the previous line should have raised an exception."
 
     def parameters():
@@ -1374,7 +1408,7 @@ def _checkLimitAndTimeout(startTime, timeout, tries, limit):
     if limit is not None and tries >= limit:
         return RetryLimitException()
 
-    return None  # Returns None if there was neither a timeout or limit exceeded.
+    return None  # Returns None if there was neither a timeout nor limit exceeded.
 
 
 def _genericInput(
@@ -1479,6 +1513,9 @@ def inputStr(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None
@@ -1490,7 +1527,7 @@ def inputStr(
 
     validationFunc = lambda value: _prevalidationCheck(
         value, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=blockRegexes, whiteList=whiteList,
-        blackList=blackList, excMsg=errorMessage,
+        blackList=blackList, allowFirst=allowFirst, whiteFirst=whiteFirst, regexFirst=regexFirst, excMsg=errorMessage,
     )[1]
 
     return _genericInput(
@@ -1516,6 +1553,9 @@ def inputCustom(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -1554,6 +1594,9 @@ def inputNum(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         min=None,
@@ -1576,6 +1619,9 @@ def inputNum(
         blockRegexes=blockRegexes,
         whiteList=whiteList,
         blackList=blackList,
+        allowFirst=allowFirst,
+        whiteFirst=whiteFirst,
+        regexFirst=regexFirst,
         min=min,
         max=max,
         lessThan=lessThan,
@@ -1606,6 +1652,9 @@ def inputInt(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         min=None,
@@ -1666,6 +1715,9 @@ def inputFloat(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         min=None,
@@ -1727,6 +1779,9 @@ def inputChoice(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         caseSensitive=False,
@@ -1789,6 +1844,9 @@ def inputMenu(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         numbered=False,
@@ -1878,6 +1936,9 @@ def inputDate(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -1931,6 +1992,9 @@ def inputDatetime(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -1963,6 +2027,9 @@ def inputTime(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -1994,6 +2061,9 @@ def inputUSState(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         returnStateName=False,
@@ -2033,6 +2103,9 @@ def inputMonth(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -2066,6 +2139,9 @@ def inputDayOfWeek(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -2101,6 +2177,9 @@ def inputDayOfMonth(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         errorMessage=None,
@@ -2132,6 +2211,9 @@ def inputIP(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2164,6 +2246,9 @@ def inputRegex(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2196,6 +2281,9 @@ def inputRegexStr(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2227,6 +2315,9 @@ def inputURL(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2377,6 +2468,9 @@ def inputZip(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2465,6 +2559,9 @@ def inputFilename(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2497,6 +2594,9 @@ def inputFilepath(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
         mustExist=False,
@@ -2530,6 +2630,9 @@ def inputEmail(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2563,6 +2666,9 @@ def inputPassword(
         blockRegexes=None,
         whiteList=None,
         blackList=None,
+        allowFirst=None,
+        whiteFirst=None,
+        regexFirst=None,
         applyFunc=None,
         postValidateApplyFunc=None,
 ):
@@ -2575,7 +2681,7 @@ def inputPassword(
 
     validationFunc = lambda value: _prevalidationCheck(
         value, blank=blank, strip=strip, allowRegexes=allowRegexes, blockRegexes=None, whiteList=whiteList,
-        blackList=blackList, excMsg=None,
+        blackList=blackList, allowFirst=allowFirst, whiteFirst=whiteFirst, regexFirst=regexFirst,
     )[1]
 
     return _genericInput(
