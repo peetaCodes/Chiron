@@ -1,0 +1,3 @@
+To install this package you need to run:
+
+sudo dpkg -i root.deb

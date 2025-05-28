@@ -1,0 +1,9 @@
+Package: chiron
+Version: 0.0.4
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.6)
+Maintainer: Pietro Bellizio
+Description: Chiron - lightweight statically typed language
+ A custom programming language interpreter with its own syntax and standard library.
