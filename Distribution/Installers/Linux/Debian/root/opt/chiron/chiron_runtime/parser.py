@@ -1,6 +1,6 @@
 # chiron_runtime/parser.py
 
-from src.chiron_runtime.lexer import Token
+from lexer import (Token)
 
 class SyntaxError(Exception):
     pass
