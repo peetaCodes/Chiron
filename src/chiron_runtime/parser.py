@@ -1,32 +1,23 @@
-# chiron_runtime/parser.py
+# src/chiron_runtime/parser.py
+from traceback import print_tb
 
-from src.chiron_runtime.lexer import Token
+from chiron_runtime.lexer import Token
 
 class SyntaxError(Exception):
     pass
 
 class Parser:
-    def __init__(self, tokens, dev_mode=False):
-        self.tokens   = list(tokens)
-        self.pos      = 0
-        self.dev_mode = dev_mode
-
-    # ——— Core token methods ———
+    def __init__(self, tokens):
+        self.tokens = list(tokens)
+        print(self.tokens)
+        self.pos = 0
 
     def current(self) -> Token:
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return Token('EOF', '')
 
-    def peek(self, n=1) -> Token:
-        i = self.pos + n
-        if i < len(self.tokens):
-            return self.tokens[i]
-        return Token('EOF', '')
-
     def advance(self):
-        if self.dev_mode:
-            self.dbg(f"advance from {self.current()}")
         self.pos += 1
 
     def expect(self, ttype: str) -> Token:
@@ -36,11 +27,6 @@ class Parser:
         self.advance()
         return tok
 
-    def lookahead(self):
-        self.advance(); next = self.current()
-        self.pos -= 1
-        return next
-
     def match(self, *ttypes):
         tok = self.current()
         if tok.type in ttypes:
@@ -48,220 +34,221 @@ class Parser:
             return tok
         return None
 
-    def dbg(self, msg: str):
-        if self.dev_mode:
-            print(f"[parse @ pos={self.pos}] {msg}")
-
-    # ——— Entry point ———
-
+    # -----------------------------------------------------------------------
+    # PUBLIC ENTRY POINT: parse() → restituisce l’AST (lista di statement)
+    # -----------------------------------------------------------------------
     def parse(self):
         stmts = []
         while self.current().type != 'EOF':
             stmts.append(self.parse_statement())
         return stmts
 
-    # ——— Statement-level ———
-
+    # -----------------------------------------------------------------------
+    # PARSER STATEMENT-LEVEL
+    # -----------------------------------------------------------------------
     def parse_statement(self):
-        self.dbg("parse_statement")
         tok = self.current()
 
-        # dispatch on leading keywords
-        if tok.type == 'ID':
-            if tok.value == 'if':
-                return self.parse_if()
-            if tok.value == 'while':
-                return self.parse_while()
-            if tok.value == 'for':
-                return self.parse_for()
-            if tok.value == 'try':
-                return self.parse_try()
-            if tok.value == 'return':
-                return self.parse_return()
-            if tok.value == 'import':
-                return self.parse_import()
-            if tok.value == 'from':
-                return self.parse_from_import()
+        # ——— 1) import / from import ———
+        if tok.type == 'ID' and tok.value == 'import':
+            return self.parse_import()
+        if tok.type == 'ID' and tok.value == 'from':
+            return self.parse_from_import()
 
-        # standalone call:  ID '(' ... ')' ';'
-        if tok.type == 'ID' and self.peek().type == 'LPAREN':
-            return self.parse_call_stmt()
+        # ——— 2) try / except / finally ———
+        if tok.type == 'ID' and tok.value == 'try':
+            return self.parse_try()
 
-        # declaration: modifiers/types
+        # ——— 3) return ———
+        if tok.type == 'ID' and tok.value == 'return':
+            return self.parse_return()
+
+        # ——— 4) if / while / for ———
+        if tok.type == 'ID' and tok.value == 'if':
+            return self.parse_if()
+        if tok.type == 'ID' and tok.value == 'while':
+            return self.parse_while()
+        if tok.type == 'ID' and tok.value == 'for':
+            return self.parse_for()
+
+        # ——— 5) dichiarazione (potrebbe iniziare con modificatori o con tipo) ———
+        # Ora il set di “inizio dichiarazione” contiene solo veri modificatori oppure parole-chiave di tipo
         if tok.type == 'ID' and tok.value in (
             'const','static','global','local','auto',
-            'int','float','bool','char','str','callable'
+            'callable',  # gestito in modo particolare
+            'int','float','bool','char','str',
+            'array','tuple','map'
         ):
             return self.parse_declaration()
 
-        # fallback: expression statement
+        # ——— 6) espressione standalone terminata da ';' ———
         expr = self.parse_expression()
         self.expect('SEMICOLON')
-        return {'type':'expr_stmt','expr':expr}
+        return {'type':'expr_stmt', 'expr': expr}
 
-    def parse_block(self):
-        self.dbg("parse_block")
+
+    # -----------------------------------------------------------------------
+    # PARSERS PER import / from_import
+    # -----------------------------------------------------------------------
+    def parse_import(self):
+        # 'import' module_path (, module_path)* ';'
+        self.expect('ID')  # 'import'
+        modules = [ self.parse_module_path() ]
+        while self.match('COMMA'):
+            modules.append(self.parse_module_path())
+        self.expect('SEMICOLON')
+        return {'type':'import', 'modules': modules}
+
+    def parse_from_import(self):
+        # 'from' module_path 'import' name (',' name)* ';'
+        self.expect('ID')  # 'from'
+        module = self.parse_module_path()
+        self.expect('ID')  # 'import'
+        names = []
+        # il nome può essere '*' oppure ID
+        if self.current().type == 'STAR':
+            self.advance()
+            names.append('*')
+        else:
+            names.append(self.expect('ID').value)
+            while self.match('COMMA'):
+                names.append(self.expect('ID').value)
+        self.expect('SEMICOLON')
+        return {'type':'from_import', 'module': module, 'names': names}
+
+    def parse_module_path(self):
+        # modulo annidato: ID ('.' ID)* → restituisce stringa con i puntini
+        parts = [ self.expect('ID').value ]
+        while self.match('DOT'):
+            parts.append(self.expect('ID').value)
+        return '.'.join(parts)
+
+
+    # -----------------------------------------------------------------------
+    # PARSERS PER try/except/finally
+    # -----------------------------------------------------------------------
+    def parse_try(self):
+        # try { ... } (except ID as var { ... })* (finally { ... })?
+        self.advance()  # 'try'
         self.expect('LBRACE')
-        stmts = []
-        while self.current().type != 'RBRACE':
-            stmts.append(self.parse_statement())
-        self.expect('RBRACE')
-        return stmts
+        try_body = self.parse_block()
 
-    # ——— Individual statements ———
+        handlers = []
+        while self.current().type == 'ID' and self.current().value == 'except':
+            self.advance()  # 'except'
+            exc_type = self.expect('ID').value
+            self.expect('ID')  # 'as'
+            exc_var = self.expect('ID').value
+            self.expect('LBRACE')
+            hbody = self.parse_block()
+            handlers.append({
+                'exception': exc_type,
+                'var':       exc_var,
+                'body':      hbody
+            })
 
+        final_body = None
+        if self.current().type == 'ID' and self.current().value == 'finally':
+            self.advance()  # 'finally'
+            self.expect('LBRACE')
+            final_body = self.parse_block()
+
+        return {
+            'type':     'try',
+            'body':     try_body,
+            'handlers': handlers,
+            'finally':  final_body
+        }
+
+    def parse_return(self):
+        self.advance()  # 'return'
+        expr = None
+        if self.current().type != 'SEMICOLON':
+            expr = self.parse_expression()
+        self.expect('SEMICOLON')
+        return { 'type': 'return', 'expression': expr }
+
+
+    # -----------------------------------------------------------------------
+    # PARSERS PER if / while / for
+    # -----------------------------------------------------------------------
     def parse_if(self):
-        self.dbg("parse_if")
-        self.expect('ID')              # 'if'
+        # if '(' cond ')' '{' body '}' (else '{' else_body '}')?
+        self.advance()  # consume 'if'
         self.expect('LPAREN')
         cond = self.parse_expression()
         self.expect('RPAREN')
+        self.expect('LBRACE')
         body = self.parse_block()
+
         else_body = None
-        if self.current().type=='ID' and self.current().value=='else':
+        if self.current().type == 'ID' and self.current().value == 'else':
             self.advance()
+            self.expect('LBRACE')
             else_body = self.parse_block()
-        return {'type':'if','condition':cond,'body':body,'else':else_body}
+
+        return { 'type':'if', 'condition': cond, 'body': body, 'else': else_body }
 
     def parse_while(self):
-        self.dbg("parse_while")
-        self.expect('ID')              # 'while'
+        # while '(' cond ')' '{' body '}'
+        self.advance()  # 'while'
         self.expect('LPAREN')
         cond = self.parse_expression()
         self.expect('RPAREN')
+        self.expect('LBRACE')
         body = self.parse_block()
-        return {'type':'while','condition':cond,'body':body}
+        return { 'type':'while', 'condition': cond, 'body': body }
 
     def parse_for(self):
-        self.dbg("parse_for")
-        self.expect('ID')              # 'for'
+        # for '(' init_stmt cond ';' update_expr ')' '{' body '}'
+        self.advance()  # 'for'
         self.expect('LPAREN')
-        init = self.parse_statement()
+        init = self.parse_statement()       # parse_statement consuma fino al ';'
         cond = self.parse_expression()
         self.expect('SEMICOLON')
         update = self.parse_expression()
         self.expect('RPAREN')
+        self.expect('LBRACE')
         body = self.parse_block()
-        return {'type':'for','init':init,'condition':cond,'update':update,'body':body}
-
-    def parse_try(self):
-        self.dbg("parse_try")
-        self.expect('ID')              # 'try'
-        try_body = self.parse_block()
-        handlers = []
-        while self.current().type=='ID' and self.current().value=='except':
-            self.advance()
-            exc_type = self.expect('ID').value
-            self.expect('ID')          # 'as'
-            exc_var  = self.expect('ID').value
-            handler_body = self.parse_block()
-            handlers.append({'exception':exc_type,'var':exc_var,'body':handler_body})
-        final_body = None
-        if self.current().type=='ID' and self.current().value=='finally':
-            self.advance()
-            final_body = self.parse_block()
-        return {'type':'try','body':try_body,'handlers':handlers,'finally':final_body}
-
-    def parse_return(self):
-        self.dbg("parse_return")
-        self.expect('ID')              # 'return'
-        expr = None
-        if self.current().type!='SEMICOLON':
-            expr = self.parse_expression()
-        self.expect('SEMICOLON')
-        return {'type':'return','expression':expr}
-
-    def parse_import(self):
-        self.dbg("parse_import")
-        self.expect('ID')  # 'import'
-        modules = []
-
-        while True:
-            module = self.parse_module_path()
-            alias = None
-            if self.current().type == 'ID' and self.current().value == 'as':
-                self.advance()
-                alias = self.expect('ID').value
-            modules.append((module, alias))
-
-            if not self.match('COMMA'):
-                break
-
-        self.expect('SEMICOLON')
-        return {'type': 'import', 'modules': modules}
-
-    def parse_from_import(self):
-        self.dbg("parse_from_import")
-        self.expect('ID')  # 'from'
-        module = self.parse_module_path()
-        self.expect('ID')  # 'import'
-
-        # Supporta 'from modulo import *' e 'from modulo import x, y'
-        names = []
-        if self.current().type == 'STAR':
-            self.advance()
-            names = ['*']
-        else:
-            names = [self.expect('ID').value]
-            while self.match('COMMA'):
-                names.append(self.expect('ID').value)
-
-        self.expect('SEMICOLON')
         return {
-            'type': 'from_import',
-            'module': module,
-            'names': names
+            'type':'for',
+            'init': init,
+            'condition': cond,
+            'update': update,
+            'body': body
         }
 
-    # ——— Helper per nomi di modulo puntati ———
-    def parse_module_path(self) -> str:
-        """Legge ID(.ID)* e restituisce la stringa modulare, es. 'std.io'."""
-        tok = self.expect('ID')
-        parts = [tok.value]
-        while self.match('DOT'):
-            next_tok = self.expect('ID')
-            parts.append(next_tok.value)
-        path = '.'.join(parts)
-        self.dbg(f"parsed module path: {path}")
-        return path
 
-    def parse_call_stmt(self):
-        self.dbg("parse_call_stmt")
-        name = self.expect('ID').value
-        self.expect('LPAREN')
-        args = []
-        if self.current().type!='RPAREN':
-            while True:
-                args.append(self.parse_expression())
-                if not self.match('COMMA'):
-                    break
-        self.expect('RPAREN')
-        self.expect('SEMICOLON')
-        return {'type':'call_callable','name':name,'args':args}
-
-    # ——— Declarations ———
-
+    # -----------------------------------------------------------------------
+    # PARSER PER dichiarazioni (variabili e funzioni)
+    # -----------------------------------------------------------------------
     def parse_declaration(self):
-        self.dbg("parse_declaration")
-        # collect modifiers
+        # ——— raccogliamo solo i veri modifiers ———
         mods = []
-        while self.current().type=='ID' and self.current().value in ('const','static','global','local'):
+        while self.current().type == 'ID' and self.current().value in (
+            'const', 'static', 'global', 'local', 'auto'
+        ):
             mods.append(self.current().value)
             self.advance()
 
-        # type & name
+        # ——— caso “callable”: stiamo dichiarando una funzione ———
+        if self.current().type == 'ID' and self.current().value == 'callable':
+            mods.append('callable')
+            self.advance()  # consumiamo “callable”
+            name = self.expect('ID').value
+            return self.parse_callable_decl(mods, name)
+
+        # ——— caso “auto”: il tipo è implicito “auto” ———
         if 'auto' in mods:
-            var_type = 'auto'
-            name     = self.expect('ID').value
+            var_type = {'type': 'simple', 'name': 'auto'}
+            name = self.expect('ID').value
+
         else:
-            var_type = self.expect('ID').value
-            name     = self.expect('ID').value
+            # ——— altrimenti dobbiamo leggere un tipo (semplice o generic) ———
+            var_type = self.parse_type()
+            name = self.expect('ID').value
 
-        # callable vs var
-        if var_type=='callable':
-            return self.parse_callable_decl(mods,name)
-
-        # variable: := or =
+        # ——— inizializzazione di variabile con “:=” o “=” ———
         if self.match('COLON'):
             self.expect('EQUAL')
         else:
@@ -269,83 +256,118 @@ class Parser:
 
         value = self.parse_expression()
         self.expect('SEMICOLON')
-        return {'type':'declaration','modifiers':mods,'var_type':var_type,'name':name,'value':value}
+
+        return {
+            'type':      'declaration',
+            'modifiers': mods,
+            'var_type':  var_type,
+            'name':      name,
+            'value':     value
+        }
 
     def parse_callable_decl(self, mods, name):
-        self.dbg("parse_callable_decl")
+        # siamo appena dopo ‘callable’ e abbiamo già letto il nome
         self.expect('LPAREN')
         params = []
-        if self.current().type!='RPAREN':
-            while True:
-                ptype = self.expect('ID').value
-                pname = self.expect('ID').value
-                params.append({'type':ptype,'name':pname})
-                if not self.match('COMMA'):
-                    break
+        while self.current().type != 'RPAREN':
+            # in questo contesto “ptype” è un ID semplice (non generic) per ora
+            ptype = self.expect('ID').value
+            pname = self.expect('ID').value
+            params.append({'type': ptype, 'name': pname})
+            if self.match('COMMA'):
+                continue
+            else:
+                break
         self.expect('RPAREN')
+        # parse arrow e tipo di ritorno
         self.expect('ARROW')
         return_type = self.expect('ID').value
 
-        body = None
-        if self.current().type=='LBRACE':
+        # corpo facoltativo
+        if self.current().type == 'LBRACE':
+            self.expect('LBRACE')
             body = self.parse_block()
             self.expect('SEMICOLON')
         else:
+            body = None
             self.expect('SEMICOLON')
 
         return {
-            'type':'declaration_callable',
-            'modifiers':mods,
-            'name':name,
-            'params':params,
-            'return_type':return_type,
-            'body':body
+            'type':        'declaration_callable',
+            'modifiers':   mods,
+            'name':        name,
+            'params':      params,
+            'return_type': return_type,
+            'body':        body
         }
 
-    # ——— Expression-level (Pratt-ish) ———
 
+    # -----------------------------------------------------------------------
+    # PARSER PER TYPE (semplici o generic)
+    # -----------------------------------------------------------------------
+    def parse_type(self):
+        # read an ID (ad esempio “int”, “str”, “array”, “tuple”, “map”)
+        base = self.expect('ID').value
+        # se è un generic, consuma '<' type (',' type)* '>'
+        print("PARSE_TYPE",self.current())
+        if self.match('LT'):
+            type_params = []
+            type_params.append(self.parse_type())
+            while self.match('COMMA'):
+                type_params.append(self.parse_type())
+            self.expect('GT')
+            return {'type':'generic', 'name': base, 'params': type_params}
+        else:
+            return {'type':'simple', 'name': base}
+
+
+    # -----------------------------------------------------------------------
+    # PARSER PER BLOCKS: { …stmts… }
+    # -----------------------------------------------------------------------
+    def parse_block(self):
+        # siamo subito dopo '{'
+        stmts = []
+        brace = 1
+        self.advance()  # consumiamo '{'
+
+        while brace > 0:
+            tok = self.current()
+            if tok.type == 'LBRACE':
+                brace += 1
+                stmts.append(self.parse_statement())
+            elif tok.type == 'RBRACE':
+                brace -= 1
+                self.advance()
+                # se brace scende a 0, abbiamo finito il blocco
+                if brace == 0:
+                    break
+            else:
+                stmts.append(self.parse_statement())
+        return stmts
+
+
+    # -----------------------------------------------------------------------
+    # PARSER PER EXPRESSION-LEVEL (confronti aritmetici + logico + literali)
+    # -----------------------------------------------------------------------
     def parse_expression(self):
-        self.dbg("parse_expression")
-        return self.parse_or()
-
-    def parse_or(self):
-        node = self.parse_and()
-        while self.current().type == 'ID' and self.current().value == 'or':
-            op_tok = self.current()
-            self.advance()
-            right = self.parse_and()
-            node = {'type': 'logic', 'op': 'or', 'left': node, 'right': right}
-        return node
-
-    def parse_and(self):
-        node = self.parse_not()
-        while self.current().type == 'ID' and self.current().value == 'and':
-            op_tok = self.current()
-            self.advance()
-            right = self.parse_not()
-            node = {'type': 'logic', 'op': 'and', 'left': node, 'right': right}
-        return node
-
-    def parse_not(self):
-        if self.current().type == 'ID' and self.current().value == 'not':
-            self.advance()
-            expr = self.parse_not()
-            return {'type': 'unary_logic', 'op': 'not', 'expr': expr}
         return self.parse_comparison()
 
     def parse_comparison(self):
         node = self.parse_add_sub()
-        # includi le sigle esatte che il lexer restituisce
-        while self.current().type in ('LT', 'GT', 'LE', 'GE', 'EQ', 'NE'):
+        # confronti: <, >, <=, >=, ==, !=
+        while self.current().type in ('LT','GT','LE','GE','EQEQ','NEQ'):
             op_tok = self.current()
             self.advance()
             right = self.parse_add_sub()
-            node = {
-                'type': 'binary_op',
-                'op': op_tok.value,
-                'left': node,
-                'right': right
-            }
+            node = {'type':'binary_op', 'op': op_tok.value, 'left': node, 'right': right}
+
+        # aggiunta: operatori logici 'and', 'or'
+        while self.current().type == 'ID' and self.current().value in ('and','or'):
+            op_tok = self.current()
+            self.advance()
+            right = self.parse_add_sub()
+            node = {'type':'logic', 'op': op_tok.value, 'left': node, 'right': right}
+
         return node
 
     def parse_add_sub(self):
@@ -378,75 +400,146 @@ class Parser:
         return node
 
     def parse_unary(self):
+        # pre-incremento/decremento
         if self.match('INCREMENT'):
-            if self.match('COLON'):
-                expr = self.parse_unary()
-                return {'type': 'unary_op', 'op': '++_pre', 'expr': expr}
-            else:
-                raise SyntaxError("Expected ':' after '++'")
+            self.expect('COLON')
+            expr = self.parse_unary()
+            return {'type':'unary_op','op':'++_pre','expr':expr}
         if self.match('DECREMENT'):
-            if self.match('COLON'):
-                expr = self.parse_unary()
-                return {'type': 'unary_op', 'op': '--_pre', 'expr': expr}
-            else:
-                raise SyntaxError("Expected ':' after '--'")
+            self.expect('COLON')
+            expr = self.parse_unary()
+            return {'type':'unary_op','op':'--_pre','expr':expr}
 
         node = self.parse_primary()
 
-        # accetta ':' anche se non seguito da ++ o -- (viene ignorato)
+        # post-incremento/decremento
         if self.match('COLON'):
             if self.match('INCREMENT'):
-                return {'type': 'unary_op', 'op': '++_post', 'expr': node}
-            elif self.match('DECREMENT'):
-                return {'type': 'unary_op', 'op': '--_post', 'expr': node}
-            else:
-                # interpretalo come "continuazione" e lascia passare
-                pass
-
+                return {'type':'unary_op','op':'++_post','expr':node}
+            if self.match('DECREMENT'):
+                return {'type':'unary_op','op':'--_post','expr':node}
+            # NOTA: abbiamo tolto l’errore “':' must be followed by ++/--” per permettere l’uso di “:” in altri contesti
+            # Se vedi solo “:” senza ++/--, lo ignoriamo.
         return node
 
     def parse_primary(self):
         tok = self.current()
-        if tok.type=='NUMBER':
+
+        # ——— NUMBER literal ———
+        if tok.type == 'NUMBER':
             self.advance()
             val = float(tok.value) if '.' in tok.value else int(tok.value)
             return {'type':'literal','value':val}
-        if tok.type=='STRING':
-            self.advance()
-            return {'type':'literal','value':tok.value[1:-1]}
-        if tok.type=='CHAR':
-            self.advance()
-            return {'type':'literal','value':tok.value[1]}
-        if tok.type == 'ID':
-            node = {'type': 'identifier', 'name': tok.value}
-            self.advance()
 
-            # gestisce accessi a proprietà: a.b.c
-            while self.match('DOT'):
-                attr = self.expect('ID').value
-                node = {'type': 'get_attr', 'object': node, 'attr': attr}
+        # ——— STRING literal ———
+        if tok.type == 'STRING':
+            self.advance()
+            return {'type':'literal','value': tok.value[1:-1]}
 
-            # se c'è '(', è una chiamata
-            if self.current().type == 'LPAREN':
-                self.advance()
-                args = []
-                kwargs = {}
-                while self.current().type != 'RPAREN':
-                    if self.current().type == 'ID' and self.lookahead().type == 'EQUAL':
-                        key = self.expect('ID').value
-                        self.expect('EQUAL')
-                        val = self.parse_expression()
-                        kwargs[key] = val
-                    else:
-                        args.append(self.parse_expression())
+        # ——— CHAR literal ———
+        if tok.type == 'CHAR':
+            self.advance()
+            return {'type':'literal','value': tok.value[1]}
+
+        # ——— ARRAY literal ———: [ expr, expr, … ]
+        if tok.type == 'LBRACKET':
+            self.advance()  # consumiamo “[”
+            elements = []
+            if self.current().type != 'RBRACKET':
+                while True:
+                    elements.append(self.parse_expression())
                     if self.current().type == 'COMMA':
                         self.advance()
-                self.expect('RPAREN')
-                node = {'type': 'call_callable', 'name': node, 'args': args, 'kwargs': kwargs}
-            return node
-        if tok.type=='LPAREN':
+                        continue
+                    break
+            self.expect('RBRACKET')
+            return {'type': 'array_literal', 'elements': elements}
+
+        # ——— MAP literal ———: { key: value, … }
+        if tok.type == 'LBRACE':     # '{'
             self.advance()
-            expr = self.parse_expression()
-            self.expect('RPAREN')
-            return expr
-        raise SyntaxError(f"Unexpected token {tok} in primary")
+            entries = []
+            if self.current().type != 'RBRACE':
+                # almeno una coppia key:value
+                key_node = self.parse_expression()
+                val_node = self.parse_expression()
+                entries.append((key_node, val_node))
+
+                while self.match('COMMA'):
+                    key_node = self.parse_expression()
+                    val_node = self.parse_expression()
+                    entries.append((key_node, val_node))
+
+            self.expect('RBRACE')
+            return {'type':'map_literal', 'entries': entries}
+
+        # ——— IDENTIFICATORE / chiamata ———
+        if tok.type == 'ID':
+            name = tok.value
+            self.advance()
+            # Possibile chiamata a funzione (se segue '(')
+            if self.current().type == 'LPAREN':
+                self.expect('LPAREN')
+                args = []
+                while self.current().type != 'RPAREN':
+                    # supporto keyword arguments: ID '=' expr
+                    if self.current().type == 'ID':
+                        saved_pos = self.pos
+                        key_candidate = self.expect('ID').value
+                        if self.match('EQUAL'):
+                            val_node = self.parse_expression()
+                            args.append({'type':'kwarg', 'key': key_candidate, 'value': val_node})
+                        else:
+                            # rollback: non era keyword, torna indietro e parse come espressione
+                            self.pos = saved_pos
+                            args.append(self.parse_expression())
+                        if self.current().type == 'COMMA':
+                            self.advance()
+                        else:
+                            continue
+                    else:
+                        args.append(self.parse_expression())
+                        if self.current().type == 'COMMA':
+                            self.advance()
+                        else:
+                            continue
+                self.expect('RPAREN')
+                return {'type':'call_callable', 'name': name, 'args': args}
+            return {'type':'identifier', 'name': name}
+
+        # ——— TUPLE literal oppure grouping con '(' ———
+        if tok.type == 'LPAREN':
+            self.advance()
+            first_expr = self.parse_expression()
+            if self.match('COMMA'):
+                # almeno due elementi per essere una tupla
+                elements = [ first_expr ]
+                elements.append(self.parse_expression())
+                while self.match('COMMA'):
+                    elements.append(self.parse_expression())
+                self.expect('RPAREN')
+                return {'type':'tuple_literal', 'elements': elements}
+            else:
+                # altrimenti era semplicemente (expr)
+                self.expect('RPAREN')
+                return first_expr
+
+        raise SyntaxError(f"Unexpected token {tok} in expression")
+
+
+    # -----------------------------------------------------------------------
+    # PARSER PER TYPE (semplici o generic)
+    # -----------------------------------------------------------------------
+    def parse_type(self):
+        # Leggiamo un ID (es. “int”, “str”, “array”, “tuple”, “map”)
+        base = self.expect('ID').value
+        # Se segue '<', è generic: base '<' type (',' type)* '>'
+        if self.match('LT'):
+            type_params = []
+            type_params.append(self.parse_type())
+            while self.match('COMMA'):
+                type_params.append(self.parse_type())
+            self.expect('GT')
+            return {'type':'generic', 'name': base, 'params': type_params}
+        # Altrimenti era un tipo semplice
+        return {'type':'simple', 'name': base}
