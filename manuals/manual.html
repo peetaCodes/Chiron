@@ -1317,10 +1317,13 @@ saluta(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#
 <div class="sect2">
 <h3 id="_6_4_funzioni_come_variabili">6.4 Funzioni come variabili</h3>
 <div class="paragraph">
-<p>Il costrutto <code>callable</code> visto in precedenza non è li a caso: infatti in chiron le funzioni non sono nient&#8217;altro che variabili. In particolare le funzioni vengono salvate come stringhe multi-linea costanti (<code>const str</code>)</p>
+<p>Il costrutto <code>callable</code> visto in precedenza non è li a caso: infatti in chiron le funzioni non sono nient&#8217;altro che variabili.</p>
 </div>
 <div class="paragraph">
-<p>Di conseguenza concetti come <em>puntatori a funzione</em> non esistono in quanto concettualmente si sta lavorando con stringhe</p>
+<p>In pratica, <strong>tutte le funzioni</strong> Chiron sono segretamente delle <strong>lambda</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Di conseguenza concetti come <em>puntatori a funzione</em> non esistono</p>
 </div>
 <div class="listingblock">
 <div class="title">Assegnazione di funzione</div>
@@ -1335,6 +1338,56 @@ print( operazione(<span style="color:#00D">3</span>, <span style="color:#00D">4<
 </div>
 <div class="paragraph">
 <p>Questa caratteristica abilita l’uso di funzioni di ordine superiore e apre la strada alla programmazione funzionale.</p>
+</div>
+<div class="paragraph">
+<p>È possibile quindi inizializzare una funzione senza assegnarle un corpo.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">auto</span> foo(<span style="color:#0a8;font-weight:bold">int</span> a, <span style="color:#0a8;font-weight:bold">int</span> b); <span style="color:#777">// auto gets the type and return type, but not the arguments .//</span>
+
+foo = {
+    <span style="color:#080;font-weight:bold">return</span> a + b;
+};
+
+foo(<span style="color:#00D">4</span>, <span style="color:#00D">6</span>) <span style="color:#579"># returns</span> <span style="color:#00D">10</span>
+
+foo = {
+    <span style="color:#080;font-weight:bold">return</span> a * b;
+}
+
+foo(<span style="color:#00D">4</span>, <span style="color:#00D">6</span>) <span style="color:#579"># returns</span> <span style="color:#00D">24</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Bisogna fare attenzione a non confondere i blocchi di funzione con le mappe!
+Infati, in caso di ambiguità il keyword auto <strong>assumerà automaticamente che si tratti di una mappa</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">auto</span> foo = {}; <span style="color:#777">// assumes 'foo' it's a map .//</span>
+
+foo = {print(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Hello, World!</span><span style="color:#710">&quot;</span></span>); <span style="color:#777">// raises TypeError .//</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_6_5_il_metodo_body">6.5 Il metodo body()</h3>
+<div class="paragraph">
+<p>Importando 'conv' dalla standard library (<em>vedi sez.</em> 10.3) Chiron si può accedere ai classici metodi di conversione come str(), int() ma anche uno  particolare, il metodo body()</p>
+</div>
+<div class="paragraph">
+<p>Quello che fa in metodo func è prendere in ingresso una stringa multi-linea e la valida come normale codice chiron, restituendo un oggetto body</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#369;font-weight:bold">str</span> my_code = <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span></span>
+result = a + b;
+<span style="color:#080;font-weight:bold">return</span> result
+<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span></span>
+
+auto foo(<span style="color:#369;font-weight:bold">int</span> a, <span style="color:#369;font-weight:bold">int</span> b) = body(my_code);</code></pre>
+</div>
 </div>
 </div>
 </div>
@@ -1908,27 +1961,7 @@ Comandi disponibili:
 <h2 id="_13_estensioni_future">13. Estensioni future</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_13_1_lambda_e_funzioni_anonime">13.1 Lambda e funzioni anonime</h3>
-<div class="paragraph">
-<p>Chiron prevede di integrare nel prossimo futuro il supporto a funzioni anonime (lambda), per migliorare la concisione e la flessibilità del codice. Le lambda permetteranno di definire funzioni inline, senza dover creare dichiarazioni formali, facilitando la programmazione funzionale e la scrittura di callback o funzioni di ordine superiore.</p>
-</div>
-<div class="paragraph">
-<p>Sintassi proposta:</p>
-</div>
-<div class="paragraph">
-<p><code>lambda (parametri) : espressione</code></p>
-</div>
-<div class="paragraph">
-<p>Esempio</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="CodeRay highlight"><code data-lang="cpp"><span style="color:#088;font-weight:bold">auto</span> somma = lambda (a, b) : a + b;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_13_2_meta_programmazione">13.2 Meta-programmazione</h3>
+<h3 id="_13_1_meta_programmazione">13.1 Meta-programmazione</h3>
 <div class="paragraph">
 <p>Una delle direzioni evolutive di Chiron riguarda la meta-programmazione, cioè la possibilità di scrivere codice che genera o manipola altro codice a tempo di compilazione o esecuzione.</p>
 </div>
@@ -1937,7 +1970,7 @@ Comandi disponibili:
 </div>
 </div>
 <div class="sect2">
-<h3 id="_13_3_supporto_a_modelli_funzionali_o_concorrenti">13.3 Supporto a modelli funzionali o concorrenti</h3>
+<h3 id="_13_2_supporto_a_modelli_funzionali_o_concorrenti">13.2 Supporto a modelli funzionali o concorrenti</h3>
 <div class="paragraph">
 <p>Chiron intende esplorare in futuro modelli di programmazione funzionale e concorrente, per adattarsi alle esigenze moderne.</p>
 </div>
@@ -1976,7 +2009,7 @@ Comandi disponibili:
 <div id="footer">
 <div id="footer-text">
 Version 0.2<br>
-Last updated 2025-05-24 21:39:36 +0200
+Last updated 2025-05-31 15:45:09 +0200
 </div>
 </div>
 <script>

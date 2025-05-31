@@ -467,9 +467,11 @@ saluta("Alice");    # Output: Ciao, Alice!
 
 === 6.4 Funzioni come variabili
 
-Il costrutto `callable` visto in precedenza non è li a caso: infatti in chiron le funzioni non sono nient'altro che variabili. In particolare le funzioni vengono salvate come stringhe multi-linea costanti (`const str`)
+Il costrutto `callable` visto in precedenza non è li a caso: infatti in chiron le funzioni non sono nient'altro che variabili.
 
-Di conseguenza concetti come _puntatori a funzione_ non esistono in quanto concettualmente si sta lavorando con stringhe
+In pratica, *tutte le funzioni* Chiron sono segretamente delle *lambda*.
+
+Di conseguenza concetti come _puntatori a funzione_ non esistono
 
 .Assegnazione di funzione
 [source, cpp]
@@ -484,14 +486,49 @@ print( operazione(3, 4) );  # Output: 12
 
 Questa caratteristica abilita l’uso di funzioni di ordine superiore e apre la strada alla programmazione funzionale.
 
-È infatti possibile utilizzare le variabili callable come lambda:
+È possibile quindi inizializzare una funzione senza assegnarle un corpo.
 
 [source, cpp]
 ----
-callable x(auto argument_a) -> str {return "this is like a lamda!"};
+auto foo(int a, int b); // auto gets the type and return type, but not the arguments .//
 
-callable y() -> char;
-y = {return 'y'}; # assegnamento tardo
+foo = {
+    return a + b;
+};
+
+foo(4, 6) # returns 10
+
+foo = {
+    return a * b;
+}
+
+foo(4, 6) # returns 24
+----
+
+Bisogna fare attenzione a non confondere i blocchi di funzione con le mappe!
+Infati, in caso di ambiguità il keyword auto *assumerà automaticamente che si tratti di una mappa*
+
+[source, cpp]
+----
+auto foo = {}; // assumes 'foo' it's a map .//
+
+foo = {print("Hello, World!"); // raises TypeError .//
+----
+
+=== 6.5 Il metodo body()
+
+Importando 'conv' dalla standard library (_vedi sez._ 10.3) Chiron si può accedere ai classici metodi di conversione come str(), int() ma anche uno  particolare, il metodo body()
+
+Quello che fa in metodo func è prendere in ingresso una stringa multi-linea e la valida come normale codice chiron, restituendo un oggetto body
+
+[source, python]
+----
+str my_code = "
+result = a + b;
+return result
+"
+
+auto foo(int a, int b) = body(my_code);
 ----
 
 == 7. Classi e oggetti
