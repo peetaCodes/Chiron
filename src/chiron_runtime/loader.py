@@ -18,6 +18,15 @@ def load_chiron_module(path: str) -> Environment:
     mod_env = Environment()             # namespace del modulo
     interp  = Interpreter()
     # Evitiamo di eseguire main(): vogliamo solo caricare definizioni
+
+    # 1) Pre-registriamo tutte le dichiarazioni_callable nel mod_env.func_decls
+    for node in ast:
+        if node.get('type') == 'declaration_callable':
+            # registra il prototipo anche se body==null o body!=null
+            name = node['name']
+            mod_env.func_decls[name] = node
+
+    # 2) Eseguiamo poi tutte le dichiarazioni/assegnazioni tramite l’interprete
     for stmt in ast:
         if stmt['type'] == 'declaration_callable':
             interp.exec_statement(stmt, mod_env)
