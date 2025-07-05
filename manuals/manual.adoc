@@ -515,7 +515,23 @@ auto foo = {}; // assumes 'foo' it's a map .//
 foo = {print("Hello, World!"); // raises TypeError .//
 ----
 
-=== 6.5 Il metodo body()
+=== 6.5 Argomenti delle funzioni
+
+È inoltre possibile cambiare gli argomenti di una funzione accedendo alla proprietà **args**.
+Esso non è nient'altro che una tupla.
+
+.Assegnazione di argomenti
+[source, cpp]
+----
+callable multiply() -> int;
+
+multiply.args = (int a);
+multiply.args:append(int b);
+
+print( multiply(3, 4) );  # Output: 12
+----
+
+=== 6.6 Il metodo body()
 
 Importando 'conv' dalla standard library (_vedi sez._ 10.3) Chiron si può accedere ai classici metodi di conversione come str(), int() ma anche uno  particolare, il metodo body()
 
@@ -523,10 +539,7 @@ Quello che fa in metodo func è prendere in ingresso una stringa multi-linea e l
 
 [source, python]
 ----
-str my_code = "
-result = a + b;
-return result
-"
+str my_code = "result = a + b;return result;"
 
 auto foo(int a, int b) = body(my_code);
 ----

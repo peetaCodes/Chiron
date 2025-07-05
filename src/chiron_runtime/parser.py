@@ -1,5 +1,4 @@
 # src/chiron_runtime/parser.py
-from traceback import print_tb
 
 from chiron_runtime.lexer import Token
 
@@ -9,13 +8,21 @@ class SyntaxError(Exception):
 class Parser:
     def __init__(self, tokens):
         self.tokens = list(tokens)
-        print(self.tokens)
         self.pos = 0
 
     def current(self) -> Token:
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return Token('EOF', '')
+
+    def peek(self, n: int) -> Token:
+        idx = self.pos + n
+        if idx < len(self.tokens):
+            return self.tokens[idx]
+        return Token('EOF', '')
+
+    def goback(self):
+        self.pos -= 1
 
     def advance(self):
         self.pos += 1
@@ -71,21 +78,82 @@ class Parser:
         if tok.type == 'ID' and tok.value == 'for':
             return self.parse_for()
 
-        # ——— 5) dichiarazione (potrebbe iniziare con modificatori o con tipo) ———
-        # Ora il set di “inizio dichiarazione” contiene solo veri modificatori oppure parole-chiave di tipo
+        # ——— 6) assignment: riconosce sia x = … sia obj.prop = … ———
+        if self._is_assignment_lhs():
+            return self.parse_assignment()
+
+        # ——— 6) dichiarazione (se inizia con tipo/modificatore) ———
         if tok.type == 'ID' and tok.value in (
             'const','static','global','local','auto',
-            'callable',  # gestito in modo particolare
-            'int','float','bool','char','str',
+            'int','float','bool','char','str','callable',
             'array','tuple','map'
         ):
             return self.parse_declaration()
 
-        # ——— 6) espressione standalone terminata da ';' ———
+        # ——— 7) espressione standalone terminata da ';' ———
         expr = self.parse_expression()
-        self.expect('SEMICOLON')
+        # Consuma il ';' se c’è, altrimenti va bene comunque.
+        if self.current().type == 'SEMICOLON':
+            self.advance()
         return {'type':'expr_stmt', 'expr': expr}
 
+    def _is_assignment_lhs(self) -> bool:
+        """
+        Ritorna True se da current() in avanti posso leggere
+        ID (DOT ID)* seguito da '=' o ':='
+        """
+        idx = self.pos
+        # deve iniziare con un ID
+        if idx >= len(self.tokens) or self.tokens[idx].type != 'ID':
+            return False
+        idx += 1
+        # poi zero o più .ID
+        while idx < len(self.tokens) and self.tokens[idx].type == 'DOT':
+            idx += 1
+            if idx >= len(self.tokens) or self.tokens[idx].type != 'ID':
+                return False
+            idx += 1
+        # ora ci aspettiamo COLON o EQUAL
+        if idx < len(self.tokens) and self.tokens[idx].type in ('COLON', 'EQUAL'):
+            return True
+        return False
+
+    # -----------------------------------------------------------------------
+    # PARSER DELL’ASSIGNMENT (ID = expr; oppure ID := expr;)
+    # -----------------------------------------------------------------------
+    def parse_assignment(self):
+        # — 1) parse lvalue: può essere ID o ID(.ID)* → restituiamo un node lvalue
+        # iniziamo con un identifier
+        base_name = self.expect('ID').value
+        lhs_node = {'type': 'identifier', 'name': base_name}
+
+        # gestiamo chain di ".prop"
+        while self.match('DOT'):
+            prop = self.expect('ID').value
+            lhs_node = {
+                'type': 'get_attr',
+                'object': lhs_node,
+                'name': prop
+            }
+
+        # — 2) consumiamo := oppure =
+        if self.match('COLON'):
+            self.expect('EQUAL')
+        else:
+            self.expect('EQUAL')
+
+        # — 3) parse della espressione RHS
+        value = self.parse_expression()
+
+        # — 4) optional ';'
+        if self.current().type == 'SEMICOLON':
+            self.advance()
+
+        return {
+            'type': 'assignment',
+            'target': lhs_node,
+            'value': value
+        }
 
     # -----------------------------------------------------------------------
     # PARSERS PER import / from_import
@@ -105,7 +173,6 @@ class Parser:
         module = self.parse_module_path()
         self.expect('ID')  # 'import'
         names = []
-        # il nome può essere '*' oppure ID
         if self.current().type == 'STAR':
             self.advance()
             names.append('*')
@@ -117,7 +184,7 @@ class Parser:
         return {'type':'from_import', 'module': module, 'names': names}
 
     def parse_module_path(self):
-        # modulo annidato: ID ('.' ID)* → restituisce stringa con i puntini
+        # modulo annidato: ID ('.' ID)* → stringa tipo "std.io"
         parts = [ self.expect('ID').value ]
         while self.match('DOT'):
             parts.append(self.expect('ID').value)
@@ -223,54 +290,55 @@ class Parser:
     # PARSER PER dichiarazioni (variabili e funzioni)
     # -----------------------------------------------------------------------
     def parse_declaration(self):
-        # ——— raccogliamo solo i veri modifiers ———
+        # ——— raccogliamo SOLO modifiers veri ———
+        modifier_tokens = ('const','static','global','local')
         mods = []
-        while self.current().type == 'ID' and self.current().value in (
-            'const', 'static', 'global', 'local', 'auto'
-        ):
+        while self.current().type == 'ID' and self.current().value in modifier_tokens:
             mods.append(self.current().value)
             self.advance()
 
-        # ——— caso “callable”: stiamo dichiarando una funzione ———
+
+        # ——— caso “callable” ———
         if self.current().type == 'ID' and self.current().value == 'callable':
-            mods.append('callable')
-            self.advance()  # consumiamo “callable”
+            self.advance()
             name = self.expect('ID').value
             return self.parse_callable_decl(mods, name)
 
-        # ——— caso “auto”: il tipo è implicito “auto” ———
-        if 'auto' in mods:
-            var_type = {'type': 'simple', 'name': 'auto'}
-            name = self.expect('ID').value
-
+        # ——— ora leggiamo il tipo: "auto" o un vero type ———
+        if self.current().type == 'ID' and self.current().value == 'auto':
+            var_type = {'type':'simple','name':'auto'}
+            self.advance()
         else:
-            # ——— altrimenti dobbiamo leggere un tipo (semplice o generic) ———
             var_type = self.parse_type()
-            name = self.expect('ID').value
 
-        # ——— inizializzazione di variabile con “:=” o “=” ———
-        if self.match('COLON'):
-            self.expect('EQUAL')
-        else:
-            self.expect('EQUAL')
+        # ——— quindi il nome della variabile ———
+        name = self.expect('ID').value
 
-        value = self.parse_expression()
+        # ——— opzionale inizializzatore ———
+        value = None
+        if self.current().type in ('COLON', 'EQUAL'):
+            # supportiamo ':=' oppure '='
+            if self.match('COLON'):
+                self.expect('EQUAL')
+            else:
+                self.expect('EQUAL')
+            value = self.parse_expression()
+
+        # ——— punto e virgola di chiusura ———
         self.expect('SEMICOLON')
-
         return {
-            'type':      'declaration',
+            'type': 'declaration',
             'modifiers': mods,
-            'var_type':  var_type,
-            'name':      name,
-            'value':     value
+            'var_type': var_type,
+            'name': name,
+            'value': value  # può restare None
         }
 
     def parse_callable_decl(self, mods, name):
-        # siamo appena dopo ‘callable’ e abbiamo già letto il nome
+        # siamo già “dentro” dopo aver letto “callable name”
         self.expect('LPAREN')
         params = []
         while self.current().type != 'RPAREN':
-            # in questo contesto “ptype” è un ID semplice (non generic) per ora
             ptype = self.expect('ID').value
             pname = self.expect('ID').value
             params.append({'type': ptype, 'name': pname})
@@ -279,7 +347,7 @@ class Parser:
             else:
                 break
         self.expect('RPAREN')
-        # parse arrow e tipo di ritorno
+
         self.expect('ARROW')
         return_type = self.expect('ID').value
 
@@ -287,7 +355,9 @@ class Parser:
         if self.current().type == 'LBRACE':
             self.expect('LBRACE')
             body = self.parse_block()
-            self.expect('SEMICOLON')
+            # Consuma un eventuale ';' di terminazione dopo la '}'
+            if self.current().type == 'SEMICOLON':
+                self.advance()
         else:
             body = None
             self.expect('SEMICOLON')
@@ -303,42 +373,43 @@ class Parser:
 
 
     # -----------------------------------------------------------------------
-    # PARSER PER TYPE (semplici o generic)
+    # PARSER PER TYPE (semplici o generici)
     # -----------------------------------------------------------------------
     def parse_type(self):
-        # read an ID (ad esempio “int”, “str”, “array”, “tuple”, “map”)
         base = self.expect('ID').value
         # se è un generic, consuma '<' type (',' type)* '>'
-        print("PARSE_TYPE",self.current())
+        # se è un generic, consuma '<' type (',' type)* '>'
         if self.match('LT'):
-            type_params = []
-            type_params.append(self.parse_type())
+            params = [ self.parse_type() ]
             while self.match('COMMA'):
-                type_params.append(self.parse_type())
+                params.append(self.parse_type())
             self.expect('GT')
-            return {'type':'generic', 'name': base, 'params': type_params}
-        else:
-            return {'type':'simple', 'name': base}
+            # restrizione: array<T> deve avere un **solo** parametro
+            if base == 'array' and len(params) != 1:
+                raise SyntaxError(f"Generic 'array' expects exactly 1 type parameter, got {len(params)}")
+            # restrizione: tuple<T1,T2,..> va sempre dichiarata con <..>, ma la _letterale_
+            # tuple si usa solo con tonde ()—e non dobbiamo toccare qui, perché il parser
+            # per il literal tuple è già vincolato agli LPAREN
+
+        # Altrimenti era un tipo semplice
+        return {'type':'simple', 'name': base}
 
 
     # -----------------------------------------------------------------------
     # PARSER PER BLOCKS: { …stmts… }
     # -----------------------------------------------------------------------
     def parse_block(self):
-        # siamo subito dopo '{'
         stmts = []
         brace = 1
         self.advance()  # consumiamo '{'
-
         while brace > 0:
             tok = self.current()
             if tok.type == 'LBRACE':
                 brace += 1
-                stmts.append(self.parse_statement())
+                self.advance()
             elif tok.type == 'RBRACE':
                 brace -= 1
                 self.advance()
-                # se brace scende a 0, abbiamo finito il blocco
                 if brace == 0:
                     break
             else:
@@ -347,7 +418,7 @@ class Parser:
 
 
     # -----------------------------------------------------------------------
-    # PARSER PER EXPRESSION-LEVEL (confronti aritmetici + logico + literali)
+    # PARSER PER EXPRESSION-LEVEL
     # -----------------------------------------------------------------------
     def parse_expression(self):
         return self.parse_comparison()
@@ -361,7 +432,7 @@ class Parser:
             right = self.parse_add_sub()
             node = {'type':'binary_op', 'op': op_tok.value, 'left': node, 'right': right}
 
-        # aggiunta: operatori logici 'and', 'or'
+        # operatori logici 'and' / 'or'
         while self.current().type == 'ID' and self.current().value in ('and','or'):
             op_tok = self.current()
             self.advance()
@@ -400,7 +471,7 @@ class Parser:
         return node
 
     def parse_unary(self):
-        # pre-incremento/decremento
+        # pre‐incremento/decremento: ++:x oppure --:x
         if self.match('INCREMENT'):
             self.expect('COLON')
             expr = self.parse_unary()
@@ -412,15 +483,15 @@ class Parser:
 
         node = self.parse_primary()
 
-        # post-incremento/decremento
+        # post‐incremento/decremento: x:++ oppure x:--
         if self.match('COLON'):
             if self.match('INCREMENT'):
                 return {'type':'unary_op','op':'++_post','expr':node}
             if self.match('DECREMENT'):
                 return {'type':'unary_op','op':'--_post','expr':node}
-            # NOTA: abbiamo tolto l’errore “':' must be followed by ++/--” per permettere l’uso di “:” in altri contesti
-            # Se vedi solo “:” senza ++/--, lo ignoriamo.
+
         return node
+
 
     def parse_primary(self):
         tok = self.current()
@@ -429,21 +500,21 @@ class Parser:
         if tok.type == 'NUMBER':
             self.advance()
             val = float(tok.value) if '.' in tok.value else int(tok.value)
-            return {'type':'literal','value':val}
+            node = {'type':'literal','value':val}
 
         # ——— STRING literal ———
-        if tok.type == 'STRING':
+        elif tok.type == 'STRING':
             self.advance()
-            return {'type':'literal','value': tok.value[1:-1]}
+            node = {'type':'literal','value': tok.value[1:-1]}
 
         # ——— CHAR literal ———
-        if tok.type == 'CHAR':
+        elif tok.type == 'CHAR':
             self.advance()
-            return {'type':'literal','value': tok.value[1]}
+            node = {'type':'literal','value': tok.value[1]}
 
-        # ——— ARRAY literal ———: [ expr, expr, … ]
-        if tok.type == 'LBRACKET':
-            self.advance()  # consumiamo “[”
+        # ——— ARRAY literal ———
+        elif tok.type == 'LBRACKET':
+            self.advance()
             elements = []
             if self.current().type != 'RBRACKET':
                 while True:
@@ -453,93 +524,177 @@ class Parser:
                         continue
                     break
             self.expect('RBRACKET')
-            return {'type': 'array_literal', 'elements': elements}
+            node = {'type':'array_literal', 'elements': elements}
 
-        # ——— MAP literal ———: { key: value, … }
-        if tok.type == 'LBRACE':     # '{'
-            self.advance()
-            entries = []
-            if self.current().type != 'RBRACE':
-                # almeno una coppia key:value
-                key_node = self.parse_expression()
-                val_node = self.parse_expression()
-                entries.append((key_node, val_node))
-
-                while self.match('COMMA'):
-                    key_node = self.parse_expression()
-                    val_node = self.parse_expression()
-                    entries.append((key_node, val_node))
-
-            self.expect('RBRACE')
-            return {'type':'map_literal', 'entries': entries}
+        # ——— MAP literal o FUNCTION anonima ———
+        elif tok.type == 'LBRACE':
+            second_tok = self.peek(1)
+            third_tok  = self.peek(2)
+            if (second_tok.type in ('STRING','CHAR','ID','NUMBER','LPAREN')
+                    and third_tok.type == 'COLON'):
+                # MAP literal
+                self.advance()
+                entries = []
+                if self.current().type != 'RBRACE':
+                    while True:
+                        key_node = self.parse_expression()
+                        self.expect('COLON')
+                        val_node = self.parse_expression()
+                        entries.append((key_node, val_node))
+                        if self.match('COMMA'):
+                            continue
+                        break
+                self.expect('RBRACE')
+                node = {'type':'map_literal', 'entries': entries}
+            else:
+                # anonymous function
+                self.advance()
+                stmts = []
+                depth = 1
+                while depth > 0:
+                    t2 = self.current()
+                    if t2.type == 'LBRACE':
+                        depth += 1; self.advance()
+                    elif t2.type == 'RBRACE':
+                        depth -= 1; self.advance()
+                    else:
+                        stmts.append(self.parse_statement())
+                node = {'type':'anonymous_func', 'body': stmts}
 
         # ——— IDENTIFICATORE / chiamata ———
-        if tok.type == 'ID':
+        # ——— IDENTIFICATORE / POSSIBILE chiamata ———
+        elif tok.type == 'ID':
             name = tok.value
             self.advance()
-            # Possibile chiamata a funzione (se segue '(')
+
+            # se segue '(', è una chiamata di funzione
             if self.current().type == 'LPAREN':
-                self.expect('LPAREN')
+                self.advance()  # consumiamo '('
                 args = []
+
+                # finché non troviamo ')', analizziamo un argomento
                 while self.current().type != 'RPAREN':
-                    # supporto keyword arguments: ID '=' expr
-                    if self.current().type == 'ID':
-                        saved_pos = self.pos
-                        key_candidate = self.expect('ID').value
-                        if self.match('EQUAL'):
-                            val_node = self.parse_expression()
-                            args.append({'type':'kwarg', 'key': key_candidate, 'value': val_node})
-                        else:
-                            # rollback: non era keyword, torna indietro e parse come espressione
-                            self.pos = saved_pos
-                            args.append(self.parse_expression())
-                        if self.current().type == 'COMMA':
-                            self.advance()
-                        else:
-                            continue
+                    # caso keyword argument: ID '=' expr
+                    if self.current().type == 'ID' and self.peek(1).type == 'EQUAL':
+                        key = self.current().value
+                        self.advance()        # consumiamo la chiave
+                        self.advance()        # consumiamo '='
+                        val = self.parse_expression()
+                        args.append({'type':'kwarg', 'key': key, 'value': val})
                     else:
+                        # altrimenti è un argomento posizionale
                         args.append(self.parse_expression())
-                        if self.current().type == 'COMMA':
-                            self.advance()
-                        else:
-                            continue
+
+                    # se c'è la virgola, consumala e proseguiamo
+                    if self.current().type == 'COMMA':
+                        self.advance()
+                        continue
+                    break
+
                 self.expect('RPAREN')
                 return {'type':'call_callable', 'name': name, 'args': args}
+
+            # altrimenti è un semplice identificatore
             return {'type':'identifier', 'name': name}
 
-        # ——— TUPLE literal oppure grouping con '(' ———
-        if tok.type == 'LPAREN':
+
+        # ——— TUPLE literal o grouping ———
+        elif tok.type == 'LPAREN':
+            # guardo i due token successivi
+            second = self.peek(1)
+            third = self.peek(2)
+            # pattern: '(' ID ID (',' ID ID)* ')'
+            if second.type == 'ID' and third.type == 'ID':
+                self.advance()  # consumi '('
+                params = []
+                while True:
+                    typ = self.expect('ID').value
+                    name = self.expect('ID').value
+                    params.append({'type': typ, 'name': name})
+                    if self.match('COMMA'):
+                        continue
+                    break
+                self.expect('RPAREN')
+                return {'type': 'typed_params', 'params': params}
+
+            # ——— Tuple‑literal oppure group ———
+            # se invece non è typed‑params, ricadremo qui
+            # se c’è subito una virgola, è tuple‑literal
+            # altrimenti è solo grouping
             self.advance()
-            first_expr = self.parse_expression()
+            first = self.parse_expression()
             if self.match('COMMA'):
-                # almeno due elementi per essere una tupla
-                elements = [ first_expr ]
-                elements.append(self.parse_expression())
-                while self.match('COMMA'):
+                elements = [first]
+                while True:
                     elements.append(self.parse_expression())
+                    if self.match('COMMA'):
+                        continue
+                    break
                 self.expect('RPAREN')
-                return {'type':'tuple_literal', 'elements': elements}
+                return {'type': 'tuple_literal', 'elements': elements}
             else:
-                # altrimenti era semplicemente (expr)
                 self.expect('RPAREN')
-                return first_expr
+                node = first
 
-        raise SyntaxError(f"Unexpected token {tok} in expression")
+        else:
+            raise SyntaxError(f"Unexpected token {tok} in expression")
 
+        # -----------------------------
+        # member‑access / method‑call chaining
+        # -----------------------------
+        while True:
+            # 1) dot access / method:   object.prop   oppure   object.method(args)
+            if self.match('DOT'):
+                prop = self.expect('ID').value
+                # se segue '(', è un metodo
+                if self.match('LPAREN'):
+                    args = []
+                    while self.current().type != 'RPAREN':
+                        args.append(self.parse_expression())
+                        if not self.match('COMMA'):
+                            break
+                    self.expect('RPAREN')
+                    node = {
+                        'type': 'method_call',
+                        'object': node,
+                        'method': prop,
+                        'args': args
+                    }
+                else:
+                    # semplice property access
+                    node = {
+                        'type': 'prop_access',
+                        'object': node,
+                        'prop': prop
+                    }
+                continue
 
-    # -----------------------------------------------------------------------
-    # PARSER PER TYPE (semplici o generic)
-    # -----------------------------------------------------------------------
-    def parse_type(self):
-        # Leggiamo un ID (es. “int”, “str”, “array”, “tuple”, “map”)
-        base = self.expect('ID').value
-        # Se segue '<', è generic: base '<' type (',' type)* '>'
-        if self.match('LT'):
-            type_params = []
-            type_params.append(self.parse_type())
-            while self.match('COMMA'):
-                type_params.append(self.parse_type())
-            self.expect('GT')
-            return {'type':'generic', 'name': base, 'params': type_params}
-        # Altrimenti era un tipo semplice
-        return {'type':'simple', 'name': base}
+            # 2) colon‑access / colon‑method: object:prop  oppure  object:method(args)
+            if self.match('COLON'):
+                member = self.expect('ID').value
+                if self.match('LPAREN'):
+                    args = []
+                    while self.current().type != 'RPAREN':
+                        args.append(self.parse_expression())
+                        if not self.match('COMMA'):
+                            break
+                    self.expect('RPAREN')
+                    node = {
+                        'type': 'colon_method_call',
+                        'object': node,
+                        'method': member,
+                        'args': args
+                    }
+                else:
+                    node = {
+                        'type': 'colon_prop_access',
+                        'object': node,
+                        'prop': member
+                    }
+                continue
+
+            break
+
+        # --- fine della parte di chaining ---
+
+        return node

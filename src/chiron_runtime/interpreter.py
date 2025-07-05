@@ -2,6 +2,7 @@
 
 import os
 import importlib
+import sys
 
 class RuntimeError(Exception):
     pass
@@ -12,10 +13,11 @@ class ReturnSignal(Exception):
 
 class Environment:
     def __init__(self, parent=None):
-        self.vars    = {}
-        self.funcs   = {}
-        self.modules = {}    # moduli caricati con import / from_import
-        self.parent  = parent
+        self.vars       = {}
+        self.funcs      = {}
+        self.func_decls = {}
+        self.modules    = {}    # moduli caricati con import / from_import
+        self.parent     = parent
 
     # ----- gestione variabili -----
     def define_var(self, name, value):
@@ -37,6 +39,9 @@ class Environment:
         else:
             raise RuntimeError(f"Variable '{name}' not defined")
 
+    def has_var(self, name):
+        return name in self.vars or (self.parent and self.parent.has_var(name))
+
     # ----- gestione funzioni -----
     def define_func(self, name, closure):
         self.funcs[name] = closure
@@ -49,6 +54,20 @@ class Environment:
         else:
             raise RuntimeError(f"Function '{name}' not defined")
 
+    def save_func_decl(self, name, decl):
+        self.func_decls[name] = decl
+
+    def get_func_decl(self, name):
+        if name in self.func_decls:
+            return self.func_decls[name]
+        elif self.parent:
+            return self.parent.get_func_decl(name)
+        else:
+            raise RuntimeError(f"Dichiarazione della funzione '{name}' non trovata.")
+
+    def has_func(self, name):
+        return name in self.funcs
+
     # ----- gestione moduli (import) -----
     def define_module(self, name, env):
         self.modules[name] = env
@@ -60,7 +79,6 @@ class Environment:
             return self.parent.get_module(name)
         else:
             raise RuntimeError(f"Module '{name}' not imported")
-
 
 class Interpreter:
     def __init__(self):
@@ -113,86 +131,249 @@ class Interpreter:
     def exec_statement(self, node, env):
         t = node['type']
 
-        # ----- import di interi moduli: "import X, Y;" -----
         if t == 'import':
+            new_modules = []
             for module_fullname in node['modules']:
-                # modulo può essere "std.io" → lo cerchiamo in chiron_runtime.stdlib
-                if module_fullname.startswith("std."):
-                    full_py_mod = 'chiron_runtime.stdlib.' + module_fullname
+                if module_fullname.endswith('.chy'):
+                    # import di un modulo Chiron, .chy file
+                    # spostiamo qui dentro l’import “pesante” per evitare circular import
+                    from chiron_runtime.loader import load_chiron_module
+                    path = module_fullname  # o calcolalo da un search path
+                    mod_env = load_chiron_module(path)
+                    alias = os.path.splitext(os.path.basename(path))[0]
+                    env.define_module(alias, mod_env)
+                    new_modules.append(alias)
                 else:
-                    full_py_mod = module_fullname
-                try:
-                    module = importlib.import_module(full_py_mod)
-                except ImportError as e:
-                    raise RuntimeError(f"Cannot import module '{module_fullname}': {e}")
-                # registro l'intero modulo come variabile
-                alias = module_fullname.split('.')[-1]
-                env.define_var(alias, module)
+                    # import di modulo Python come prima
+                    if module_fullname.startswith("std."):
+                        full_py = 'chiron_runtime.stdlib.' + module_fullname
+                    else:
+                        full_py = module_fullname
+                    mod = importlib.import_module(full_py)
+                    alias = module_fullname.split('.')[-1]
+                    env.define_var(alias, mod)
+                    new_modules.append(alias)
             return None
 
-        # ----- from-import: "from X import A, B, *;" -----
         elif t == 'from_import':
             mod_name = node['module']
-            if mod_name.startswith("std."):
-                full_py_mod = 'chiron_runtime.stdlib.' + mod_name
-            else:
-                full_py_mod = mod_name
-            try:
-                module = importlib.import_module(full_py_mod)
-            except ImportError as e:
-                raise RuntimeError(f"Cannot import module '{mod_name}': {e}")
+            alias_env = None
 
-            for item in node['names']:
-                if item == '*':
-                    # import all
-                    for attr in dir(module):
-                        if not attr.startswith("_"):
-                            obj = getattr(module, attr)
-                            if callable(obj):
-                                env.define_func(attr, obj)
-                            else:
-                                env.define_var(attr, obj)
-                else:
-                    name = item
-                    alias = item
-                    obj = getattr(module, name)
-                    if callable(obj):
-                        env.define_func(alias, obj)
+            # ——————————————————————————————
+            # 1) Proviamo a importare un modulo Python/stdlib
+            # ——————————————————————————————
+            if mod_name.startswith("std.") or mod_name in sys.modules:
+                py_mod = (mod_name.startswith("std.")
+                          and 'chiron_runtime.stdlib.' + mod_name
+                          or mod_name)
+                try:
+                    alias_env = importlib.import_module(py_mod)
+                except ImportError:
+                    alias_env = None
+
+            # ——————————————————————————————
+            # 2) Se non è un modulo Python, cerchiamo un .chy
+            # ——————————————————————————————
+            if alias_env is None:
+                from chiron_runtime.loader import load_chiron_module
+                chy_path = f'chiron_runtime.stdlib.{mod_name}'.replace('.', os.sep) + '.chy'
+                if os.path.isfile(chy_path):
+                    # load_chiron_module restituisce un Environment
+                    alias_env = load_chiron_module(chy_path)
+
+            if alias_env is None:
+                raise RuntimeError(f"Cannot import module '{mod_name}'")
+
+            # ——————————————————————————————
+            # 3) Esportazione dei nomi richiesti
+            # ——————————————————————————————
+            for name in node['names']:
+                if name == '*':
+                    # “import *”: esporta tutto
+                    if isinstance(alias_env, type(importlib)):
+                        # modulo Python
+                        for attr in dir(alias_env):
+                            if not attr.startswith('_'):
+                                obj = getattr(alias_env, attr)
+                                if callable(obj):
+                                    env.define_func(attr, obj)
+                                else:
+                                    env.define_var(attr, obj)
                     else:
-                        env.define_var(alias, obj)
+                        # Environment Chiron
+                        # tutte le variabili
+                        for var_name, var_val in alias_env.vars.items():
+                            env.define_var(var_name, var_val)
+                        # tutte le funzioni
+                        for fn_name, fn_val in alias_env.funcs.items():
+                            env.define_func(fn_name, fn_val)
+                else:
+                    # “from X import A, B, …”
+                    if isinstance(alias_env, type(importlib)):
+                        # modulo Python
+                        if not hasattr(alias_env, name):
+                            raise RuntimeError(
+                                f"Module '{mod_name}' has no member '{name}'"
+                            )
+                        obj = getattr(alias_env, name)
+                        if callable(obj):
+                            env.define_func(name, obj)
+                        else:
+                            env.define_var(name, obj)
+                    else:
+                        # Environment Chiron
+                        if name in alias_env.vars:
+                            env.define_var(name, alias_env.vars[name])
+                        elif name in alias_env.funcs:
+                            env.define_func(name, alias_env.funcs[name])
+                        else:
+                            raise RuntimeError(
+                                f"Module '{mod_name}' has no member '{name}'"
+                            )
             return None
+
+
 
         # ----- dichiarazione variabile: "tipo nome = espr;" -----
         elif t == 'declaration':
-            # node['var_type'] contiene il tipo (svuotato dallo schema, non lo usiamo al runtime dinamico)
-            val = self.eval_expression(node['value'], env)
+            print(f"↪︎ [declaration] name='{node['name']}' type={node['var_type']} value node:", node['value'])
+            # se non c’è inizializzatore, scegliamo un default in base al tipo
+            var_type = node['var_type']  # es. {'type':'simple','name':'int'} o generic
+            if node['value'] is None:
+                val = self.default_value_for(var_type)
+            else:
+                val = self.eval_expression(node['value'], env)
+
+            # (eventuale) type checking, se lo fai
+            try:
+                self.type_check(var_type, val)
+            except Exception as e:
+                raise RuntimeError(f"Type error in declaration of '{node['name']}': {e}")
+
             env.define_var(node['name'], val)
             return None
 
-        # ----- dichiarazione funzione: "callable f(params) -> type { body };" -----
-        elif t == 'declaration_callable':
-            def func(*args):
-                local_env = Environment(env)
-                # bind parametri
-                for i, param in enumerate(node['params']):
-                    local_env.define_var(param['name'], args[i])
-                try:
-                    for stmt in node.get('body', []):
-                        result = self.exec_statement(stmt, local_env)
-                        if isinstance(result, ReturnSignal):
-                            return result.value
-                except ReturnSignal as rs:
-                    return rs.value
+        # ——— assignment ———
+        elif t == 'assignment':
+            target = node['target']
+            val_node = node['value']
+
+            # —— special case: multiply.args = (typed_params) ——
+            if target['type'] == 'get_attr' and target['name'] == 'args' \
+                    and val_node.get('type') == 'typed_params':
+                name = target['object']['name']
+
+                # 1) aggiorno la DECLARATION (firma) sempre
+                decl = env.get_func_decl(name)
+                decl['params'] = val_node['params']
+
+                # 2) se la closure esiste già, setto i suoi attributi
+                closure = env.funcs.get(name)
+                if closure is not None:
+                    closure.args = val_node['params']
+                    closure._param_names = [p['name'] for p in val_node['params']]
+
                 return None
 
-            env.define_func(node['name'], func)
+            # —— property assignment generico (fallback) ——
+            if target['type'] == 'get_attr':
+                obj = self.eval_expression(target['object'], env)
+                val = self.eval_expression(val_node, env)
+                setattr(obj, target['name'], val)
+                return None
+
+            # override di un anonymous_func?
+            if target.get('type') == 'identifier' \
+                    and val_node \
+                    and val_node.get('type') == 'anonymous_func':
+
+                name = target['name']
+
+                # → qui prendo i parametri dalla dichiarazione originaria
+                try:
+                    decl_node = env.get_func_decl(name)
+                    formals = decl_node['params']
+                except RuntimeError:
+                    formals = []
+
+                print(f"🔧 Overriding function '{name}'")
+                print(f"    formals = {formals}")
+
+                def func_override(*args):
+                    print(f"▶️  Called override {name} with args={args}")
+                    local_env = Environment(env)
+                    # bind dei formali
+                    for i, p in enumerate(formals):
+                        local_env.define_var(p['name'], args[i])
+                    print(f"    local_env after binding = {local_env.vars}")
+
+                    # eseguo il body anonimo
+                    last = None
+                    for stmt in val_node['body']:
+                        if stmt['type'] == 'return':
+                            return self.eval_expression(stmt['expression'], local_env)
+                        elif stmt['type'] == 'expr_stmt':
+                            last = self.eval_expression(stmt['expr'], local_env)
+                        else:
+                            self.exec_statement(stmt, local_env)
+                    return last
+
+                func_override.args = formals
+                func_override._param_names = [p['name'] for p in formals]
+                env.define_func(name, func_override)
+
+                print(f"✅ Function '{name}' overridden\n")
+                return None
+
+            # altrimenti assignment normale a variabile…
+            value = self.eval_expression(val_node, env)
+            varial = target['name']
+            if env.has_var(varial):
+                env.set_var(varial, value)
+            else:
+                env.define_var(varial, value)
             return None
 
-        # ----- chiamata funzione: "f(arg1, arg2, key=val, ...)" -----
+
+        # ——— dichiarazione funzione ———
+        elif t == 'declaration_callable':
+            # se vogliamo supportare forward-declarations
+            if node['body'] is None:
+                # registriamo la firma, ma rimandiamo il corpo
+                env.save_func_decl(node['name'], node)
+                env.define_func(node['name'], None)
+                return None
+
+            # altrimenti definiamo subito la closure completa
+            def func(*args):
+                local_env = Environment(env)
+                for i, param in enumerate(formals):
+                    local_env.define_var(param['name'], args[i])
+                last = None
+                for stmt in node['body']:
+                    res = self.exec_statement(stmt, local_env)
+                    if isinstance(res, ReturnSignal):
+                        return res.value
+                    if stmt.get('type') == 'expr_stmt':
+                        last = self.eval_expression(stmt['expr'], local_env)
+                return last
+
+            # Prendi la declaration_callable salvata in env e ne estrai i params
+            decl = env.get_func_decl(node['name'])  # qui lanci get_func_decl — non dovrebbe fallire
+            formals = decl.get('params', [])  # lista di {'type':..., 'name':...}
+
+            func.args = list(formals)
+            func._param_names = [p['name'] for p in formals]
+            env.define_func(node['name'], func)
+            env.save_func_decl(node['name'], node)
+            return None
+
+        # ——— chiamata funzione, return, try, if, while, for, expr_stmt, ecc. ———
+
         elif t == 'call_callable':
             func = env.get_func(node['name'])
             pos_args = []
-            kw_args  = {}
+            kw_args = {}
             for arg in node['args']:
                 if arg.get('type') == 'kwarg':
                     kw_args[arg['key']] = self.eval_expression(arg['value'], env)
@@ -264,20 +445,119 @@ class Interpreter:
         else:
             raise RuntimeError(f"Unknown statement type: {t}")
 
+    def default_value_for(self, var_type):
+        """
+        Ritorna un valore “zero” per ogni tipo:
+        - int   → 0
+        - float → 0.0
+        - bool  → False
+        - str   → ""
+        - array<T> → []
+        - tuple<T1,…> → ()
+        - map<K,V> → {}
+        - auto → None
+        """
+        kind = var_type['type']
+        name = var_type['name']
+        if kind == 'simple':
+            if name == 'int':   return 0
+            if name == 'float': return 0.0
+            if name == 'bool':  return False
+            if name == 'str':   return ""
+            if name == 'char':  return '\0'
+            # auto: non sappiamo → None
+            return None
+        else:  # generic
+            if name == 'array': return []
+            if name == 'tuple': return ()
+            if name == 'map':   return {}
+            # altri generic → None
+            return None
+
+
+    def type_check(self, expected, value):
+        """
+        expected: {'type':'simple'|'generic', 'name':str, 'params':[...] }
+        value: Python object from eval_expression
+        """
+        # tipi semplici: do nothing
+        if expected['type'] == 'simple':
+         return
+
+        # generici
+        name = expected['name']
+        params = expected.get('params', [])
+        if name == 'array':
+         if not isinstance(value, list):
+             raise RuntimeError(f"expected array, got {type(value).__name__}")
+        # array<T> deve avere esattamente un parametro
+        elem_type = params[0]
+        for i, el in enumerate(value):
+            try:
+                self.type_check(elem_type, el)
+            except RuntimeError as e:
+                raise RuntimeError(f"array element at index {i}: {e}")
+        return
+
+        if name == 'tuple':
+         if not isinstance(value, tuple):
+             raise RuntimeError(f"expected tuple, got {type(value).__name__}")
+        if len(params) != len(value):
+            raise RuntimeError(f"tuple length mismatch: expected {len(params)}, got {len(value)}")
+        for i,(subt, el) in enumerate(zip(params, value)):
+            try:
+                self.type_check(subt, el)
+            except RuntimeError as e:
+                raise RuntimeError(f"tuple element {i}: {e}")
+        return
+
+        if name == 'map':
+         if not isinstance(value, dict):
+             raise RuntimeError(f"expected map, got {type(value).__name__}")
+        key_t, val_t = params
+        for k,v in value.items():
+            try:
+                self.type_check(key_t, k)
+            except RuntimeError as e:
+                raise RuntimeError(f"map key {k!r}: {e}")
+            try:
+                self.type_check(val_t, v)
+            except RuntimeError as e:
+                raise RuntimeError(f"map value for key {k!r}: {e}")
+        return
+
+        # altri tipi generici (se ne aggiungeranno)…
+        return
+
+
 
     # -----------------------------------------------------------------------
     # EVALUATOR DI EXPRESSION-NODE (compresi i nuovi array/tuple/map)
     # -----------------------------------------------------------------------
     def eval_expression(self, node, env):
+        print("↪︎ eval_expression got:", node)
+
         t = node['type']
 
+        print(t, t == 'assignment')
+
         if t == 'literal':
+            print("↪︎   literal →", node['value'])
             return node['value']
 
         elif t == 'identifier':
-            return env.get_var(node['name'])
+            name = node['name']
+
+            if env.has_func(name):
+                print(f"↪︎   identifier '{node['name']}' →", env.get_func(name))
+                return env.get_func(name)
+
+            print(f"↪︎   identifier '{node['name']}' →", env.get_var(name))
+
+            return env.get_var(name)
 
         elif t == 'binary_op':
+            print(f"↪︎   binary_op {node['op']}")
             left  = self.eval_expression(node['left'], env)
             right = self.eval_expression(node['right'], env)
             op = node['op']
@@ -326,7 +606,11 @@ class Interpreter:
             raise RuntimeError(f"Unknown unary op '{node['op']}'")
 
         elif t == 'call_callable':
+            print("↪︎   call_callable:", node)
             func = env.get_func(node['name'])
+            print("↪︎     resolved func:", func)
+            if not callable(func):
+                raise RuntimeError(f"'{node['name']}' non è una funzione.")
             pos_args = []
             kw_args  = {}
             for arg in node['args']:
@@ -334,7 +618,32 @@ class Interpreter:
                     kw_args[arg['key']] = self.eval_expression(arg['value'], env)
                 else:
                     pos_args.append(self.eval_expression(arg, env))
+            print(f"→ Calling {node['name']} with pos={pos_args} kw={kw_args}")
+            result = func(*pos_args, **kw_args)
+            print(f"→ {node['name']} returned", result)
             return func(*pos_args, **kw_args)
+
+        # —— funzione anonima (blocchi {…}) ——
+        elif t == 'anonymous_func':
+            # costruiamo una chiusura uguale a come facciamo per le dichiarate
+            body = node['body']
+            def anon(*args):
+                # chiudiamo sull'env corrente
+                local_env = Environment(env)
+                last = None
+                for stmt in body:
+                    # gestiamo return espliciti
+                    try:
+                        res = self.exec_statement(stmt, local_env)
+                        if isinstance(res, ReturnSignal):
+                            return res.value
+                    except ReturnSignal as rs:
+                        return rs.value
+                    # expr_stmt → salviamo il valore
+                    if stmt.get('type') == 'expr_stmt':
+                        last = self.eval_expression(stmt['expr'], local_env)
+                return last
+            return anon
 
         elif t == 'array_literal':
             return [ self.eval_expression(elem, env) for elem in node['elements'] ]
@@ -349,6 +658,34 @@ class Interpreter:
                 val = self.eval_expression(val_node, env)
                 d[key] = val
             return d
+
+        elif t == 'get_attr':
+            # recupera l'oggetto
+            obj = self.eval_expression(node['object'], env)
+            try:
+                return getattr(obj, node['name'])
+            except AttributeError:
+                raise RuntimeError(f"Oggetto di tipo {type(obj)} non ha attributo '{node['name']}'")
+
+        elif t == 'call_method':
+            # valuta l'oggetto e recupera il bound‐method
+            obj = self.eval_expression(node['object'], env)
+            meth = getattr(obj, node['method'], None)
+            if not callable(meth):
+                raise RuntimeError(f"'{node['method']}' non è un metodo di {obj}")
+            # valuta args posizionali
+            args = [self.eval_expression(a, env) for a in node['args']]
+            return meth(*args)
+
+        elif t == 'prop_access':
+            obj = self.eval_expression(node['object'], env)
+            return getattr(obj, node['prop'])
+
+        elif t in ('method_call', 'colon_method_call'):
+            obj = self.eval_expression(node['object'], env)
+            method = getattr(obj, node['method'])
+            args = [self.eval_expression(a, env) for a in node['args']]
+            return method(*args)
 
         else:
             raise RuntimeError(f"Unknown expression type '{t}'")
