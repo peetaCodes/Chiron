@@ -34,6 +34,12 @@ class Parser:
         self.advance()
         return tok
 
+    def previous(self) -> Token:
+        self.goback()
+        tok = self.current()
+        self.advance()
+        return tok
+
     def match(self, *ttypes):
         tok = self.current()
         if tok.type in ttypes:
@@ -159,29 +165,41 @@ class Parser:
     # PARSERS PER import / from_import
     # -----------------------------------------------------------------------
     def parse_import(self):
-        # 'import' module_path (, module_path)* ';'
+        # 'import' module_path ( 'as' alias)? (',' module_path ( 'as' alias)? )* ';'
         self.expect('ID')  # 'import'
-        modules = [ self.parse_module_path() ]
-        while self.match('COMMA'):
-            modules.append(self.parse_module_path())
+        modules = []
+        while True:
+            path = self.parse_module_path()
+            alias = None
+            if self.match('ID') and self.previous().value == 'as':
+                alias = self.expect('ID').value
+            modules.append({'path': path, 'alias': alias})
+            if not self.match('COMMA'):
+                break
         self.expect('SEMICOLON')
-        return {'type':'import', 'modules': modules}
+        return {'type': 'import', 'modules': modules}
 
     def parse_from_import(self):
-        # 'from' module_path 'import' name (',' name)* ';'
+        # 'from' module_path 'import' name ( 'as' alias)? (',' name ( 'as' alias)? )* ';'
         self.expect('ID')  # 'from'
-        module = self.parse_module_path()
+        module_path = self.parse_module_path()
         self.expect('ID')  # 'import'
         names = []
-        if self.current().type == 'STAR':
-            self.advance()
-            names.append('*')
-        else:
-            names.append(self.expect('ID').value)
-            while self.match('COMMA'):
-                names.append(self.expect('ID').value)
+        while True:
+            if self.current().type == 'STAR':
+                self.advance()
+                name = '*'
+                alias = None
+            else:
+                name = self.expect('ID').value
+                alias = None
+                if self.match('ID') and self.previous().value == 'as':
+                    alias = self.expect('ID').value
+            names.append({'name': name, 'alias': alias})
+            if not self.match('COMMA'):
+                break
         self.expect('SEMICOLON')
-        return {'type':'from_import', 'module': module, 'names': names}
+        return {'type': 'from_import', 'module': module_path, 'names': names}
 
     def parse_module_path(self):
         # modulo annidato: ID ('.' ID)* → stringa tipo "std.io"

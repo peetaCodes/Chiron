@@ -1,0 +1,17 @@
+// --- common.chy --- .//
+
+# src/chiron_runtime/stdlib/common.chy
+
+# 1) Import delle primitive Python nel namespace 'py'
+from py.builtins import print as __py_print, input as __py_input;
+
+# 2) Wrapper Chiron “friendly”
+callable print(string s) -> void {
+    __py_print(s);
+};
+
+callable input(string prompt) -> string {
+    return __py_input(prompt);
+};
+
+// … qui in futuro aggiungerai split, append, len, ecc. … .//

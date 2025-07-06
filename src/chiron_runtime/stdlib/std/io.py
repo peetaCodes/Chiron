@@ -49,8 +49,6 @@ __all__ = [
     'inputUSState',
     'inputYesNo',
     'inputZip',
-    'input',
-    'print',
     'validateAddress',
     'validateBool',
     'validateChoice',
@@ -78,19 +76,6 @@ __all__ = [
     'validateUSState',
     'validateYesNo',
 ]
-
-def print(*args):
-    """
-    Chiron std.io.print: alias di print Python
-    """
-    # Converte tutto in stringa e stampa separato da spazio
-    builtins.print(*args)
-
-def input(prompt: str = "") -> str:
-    """
-    Chiron std.io.input: alias di input Python
-    """
-    return builtins.input(prompt)
 
 """
 PySimpleValidate
