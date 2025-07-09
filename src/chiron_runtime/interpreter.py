@@ -2,7 +2,6 @@
 
 import os
 import importlib
-import sys
 
 class RuntimeError(Exception):
     pass
@@ -81,29 +80,34 @@ class Environment:
             raise RuntimeError(f"Module '{name}' not imported")
 
 class Interpreter:
-    def __init__(self, devMode:bool = False):
+    def __init__(self, stdlib_file:bool = False,devMode:bool = False):
         self.global_env = Environment()
-        self.setup_stdlib()
 
         self.devMode = devMode
         self.cwd = os.getcwd()
         self.stdlib_dir = 'chiron_runtime/stdlib'
         self.abs_stdlib_dir = f'{self.cwd}{os.sep}{self.stdlib_dir}/std'
+        if not stdlib_file: self.setup_stdlib()
 
     def debug(self, *args, **kwargs):
         if self.devMode:
-            print("[DEBUG]", *args, **kwargs)
+            print("[INTERPRETER DEBUG]", *args, **kwargs)
 
     def setup_stdlib(self):
-        # Per esempio, se si vuole registrare subito print() e input() dalla stdlib scritta in Python:
+
+        from chiron_runtime.loader import load_chiron_module
+        builtins_path = os.path.join(self.stdlib_dir, "std/common.chy")
         try:
-            from loader import load_chiron_module
-            # → Auto‑import del modulo common.chy
-            builtins_path = os.path.join(self.stdlib_dir, "std/common.chy")
-            load_chiron_module(builtins_path)(self.global_env)
+            # load_chiron_module torna un Environment
+            mod_env = load_chiron_module(builtins_path)
         except ImportError:
-            # se non esistono, proseguiamo senza stdlib
-            pass
+            return
+
+        # “Inietta” tutto dal modulo common.chy nel global_env corrente:
+        for name, val in mod_env.vars.items():
+            self.global_env.define_var(name, val)
+        for name, fn in mod_env.funcs.items():
+            self.global_env.define_func(name, fn)
 
     def resolve_chiron_module(self, path_segments:list):
         """
@@ -153,7 +157,7 @@ class Interpreter:
             func()
 
         # alla fine, per debug, stampo l’ambiente globale
-        self.dump_env()
+        if self.devMode:self.dump_env()
 
     def safe_execute(self, node, env):
         try:
@@ -165,6 +169,7 @@ class Interpreter:
 
     def exec_statement(self, node, env):
         t = node['type']
+
 
         if   t == 'import':
             from chiron_runtime.loader import load_chiron_module
@@ -227,13 +232,16 @@ class Interpreter:
                             env.define_var(attr, val)
                         for f, fn in base.funcs.items():
                             env.define_func(f, fn)
+                        for mod_name, mod_env in base.modules.items():
+                            env.define_module(mod_name, mod_env)
                 else:
                     if module_path[0] == 'py':
                         val = getattr(base, name)
+                        # metto TUTTO in vars, così da farli trovare con env.get_var()
+                        env.define_var(alias, val)
+                        # (se qualcuno li chiama come funzione, funzioni lo stesso)
                         if callable(val):
                             env.define_func(alias, val)
-                        else:
-                            env.define_var(alias, val)
                         self.debug(f"From python module imported {name} as {alias}")
                     else:
                         # Chiron module
@@ -337,6 +345,22 @@ class Interpreter:
                 self.debug(f"✅ Function '{name}' overridden\n")
                 return None
 
+            # —— property assignment generico (fallback) ——
+            if target.get('type') == 'index_access':
+                arr = self.eval_expression(target['object'], env)
+                idx = self.eval_expression(target['index'], env)
+                val = self.eval_expression(val_node, env)
+                # se idx == len(arr), facciamo append, altrimenti sovrascriviamo
+                if not isinstance(arr, list):
+                    raise RuntimeError(f"Index‐assignment error: object is not an array/list")
+                if idx == len(arr):
+                    arr.append(val)
+                elif 0 <= idx < len(arr):
+                    arr[idx] = val
+                else:
+                    raise RuntimeError(f"Index‐assignment error: index {idx} out of range")
+                return None
+
             # altrimenti assignment normale a variabile…
             value = self.eval_expression(val_node, env)
             var = target['name']
@@ -374,17 +398,13 @@ class Interpreter:
                 for i, param in enumerate(formals):
                     local_env.define_var(param['name'], args[i])
 
-                last = None
                 # Esegui ogni statement del corpo
-                for stmt in node['body']:
-                    res = self.exec_statement(stmt, local_env)
-                    if isinstance(res, ReturnSignal):
-                        return res.value
-                    # Se è expression statement, catturiamo l'ultimo valore
-                    if stmt.get('type') == 'expr_stmt':
-                        last = self.eval_expression(stmt['expr'], local_env)
-                return last
-
+                try:
+                    for stmt in node['body']:
+                        self.exec_statement(stmt, local_env)
+                    return None
+                except ReturnSignal as rs:
+                    return rs.value
             # 4) Attacca metadata sui parametri
             func.args = list(formals)
             func._param_names = [p['name'] for p in formals]
@@ -439,17 +459,37 @@ class Interpreter:
             cond = self.eval_expression(node['condition'], env)
             if cond:
                 for stmt in node['body']:
-                    self.safe_execute(stmt, env)
+                    self.exec_statement(stmt, env)
             elif node.get('else'):
                 for stmt in node['else']:
-                    self.safe_execute(stmt, env)
+                    self.exec_statement(stmt, env)
             return None
 
         # ----- while -----
         elif t == 'while':
             while self.eval_expression(node['condition'], env):
                 for stmt in node['body']:
-                    self.safe_execute(stmt, env)
+                    self.exec_statement(stmt, env)
+            return None
+
+        # ----- for each -----
+        elif t == 'for_each':
+            # Esempio: for_each var_name in iterable
+            var_name = node['var_name']
+            iterable = self.eval_expression(node['iterable'], env)
+            # ci aspettiamo che iterable sia un array o simile
+            length = iterable.__len__()  # o len(iterable) se supporti Python lists
+            # Ciclo dall'indice 0 a length-1
+            for i in range(length):
+                # assegna l'elemento corrente alla var_name
+                value = iterable[i]
+                env.define_var(var_name, value)
+                # esegui il corpo in questo environment
+                for stmt in node['body']:
+                    try:
+                        self.exec_statement(stmt, env)
+                    except ReturnSignal as rs:
+                        raise rs
             return None
 
         # ----- for -----
@@ -458,7 +498,7 @@ class Interpreter:
             self.exec_statement(node['init'], env)
             while self.eval_expression(node['condition'], env):
                 for stmt in node['body']:
-                    self.safe_execute(stmt, env)
+                    self.exec_statement(stmt, env)
                 # update è un’espressione standalone
                 self.eval_expression(node['update'], env)
             return None
@@ -631,40 +671,40 @@ class Interpreter:
                 return old
             raise RuntimeError(f"Unknown unary op '{node['op']}'")
 
+        # ——— supporto per espressioni unarie logiche: 'not' ———
+        if t == 'unary_logic':
+            # node = { 'type':'unary_logic', 'op':'not', 'expr': <subexpr> }
+            val = self.eval_expression(node['expr'], env)
+            if node['op'] == 'not':
+                return not bool(val)
+            else:
+                raise RuntimeError(f"Unknown logical unary operator '{node['op']}'")
+
+        elif t == 'index_access':
+            # object[index]
+            obj = self.eval_expression(node['object'], env)
+            idx = self.eval_expression(node['index'], env)
+            try:
+                return obj[idx]
+            except Exception as e:
+                raise RuntimeError(f"Index access error: {e}")
+
+
 
         elif t == 'call_callable':
-
             self.debug("↪︎   call_callable:", node)
-
             func = env.get_func(node['name'])
-
             self.debug("↪︎     resolved func:", func)
-
-            if not callable(func):
-                raise RuntimeError(f"'{node['name']}' non è una funzione.")
-
-            pos_args = []
-
-            kw_args = {}
-
-            for arg in node['args']:
-
-                if arg.get('type') == 'kwarg':
-
-                    kw_args[arg['key']] = self.eval_expression(arg['value'], env)
-
-                else:
-
-                    pos_args.append(self.eval_expression(arg, env))
-
+            pos_args = [ self.eval_expression(a, env)
+                         for a in node['args'] if a.get('type') != 'kwarg' ]
+            kw_args  = { a['key']: self.eval_expression(a['value'], env)
+                         for a in node['args'] if a.get('type') == 'kwarg' }
             self.debug(f"→ Calling {node['name']} with pos={pos_args} kw={kw_args}")
-
-            # Chiamiamo la funzione una sola volta e ne salviamo il risultato
-
-            result = func(*pos_args, **kw_args)
-
+            try:
+                result = func(*pos_args, **kw_args)
+            except ReturnSignal as rs:
+                result = rs.value
             self.debug(f"→ {node['name']} returned {result}")
-
             return result
 
         # —— funzione anonima (blocchi {…}) ——
@@ -674,19 +714,12 @@ class Interpreter:
             def anon(*args):
                 # chiudiamo sull' env corrente
                 local_env = Environment(env)
-                last = None
-                for stmt in body:
-                    # gestiamo return espliciti
-                    try:
-                        res = self.exec_statement(stmt, local_env)
-                        if isinstance(res, ReturnSignal):
-                            return res.value
-                    except ReturnSignal as rs:
-                        return rs.value
-                    # expr_stmt → salviamo il valore
-                    if stmt.get('type') == 'expr_stmt':
-                        last = self.eval_expression(stmt['expr'], local_env)
-                return last
+                try:
+                    for stmt in body:
+                        self.exec_statement(stmt, local_env)
+                    return None
+                except ReturnSignal as rs:
+                    return rs.value
             return anon
 
         elif t == 'array_literal':
@@ -739,8 +772,8 @@ class Interpreter:
     # PER DEBUG: stampa l’ambiente globale dopo l’esecuzione
     # -----------------------------------------------------------------------
     def dump_env(self):
-        self.debug("\n=== Ambiente finale ===")
+        print("\n=== Ambiente finale ===")
         for name, val in self.global_env.vars.items():
-            self.debug(f"{name} = {val}")
+            print(f"{name} = {val}")
         for name in self.global_env.funcs:
-            self.debug(f"Function: {name}()")
+            print(f"Function: {name}()")

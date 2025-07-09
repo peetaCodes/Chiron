@@ -1,17 +1,135 @@
-// --- common.chy --- .//
+# !ISF
 
-# src/chiron_runtime/stdlib/common.chy
+# 1) Import delle primitive Python
+from py.builtins import len   as __py_len, abs   as __py_abs, str   as __py_str, print as __py_print, input as __py_input;
 
-# 1) Import delle primitive Python nel namespace 'py'
-from py.builtins import print as __py_print, input as __py_input;
-
-# 2) Wrapper Chiron “friendly”
-callable print(string s) -> void {
-    __py_print(s);
+callable print(str phrase) -> void {
+    __py_print(phrase);
 };
 
-callable input(string prompt) -> string {
+callable input(str prompt) -> str {
     return __py_input(prompt);
 };
 
-// … qui in futuro aggiungerai split, append, len, ecc. … .//
+# 2) stringhe
+
+callable len(str s) -> int {
+    return __py_len(s);
+};
+
+callable substring(str s, int start, int end) -> str {
+    str result = "";
+    for (int i = start; i < end and i < len(s); ++:i) {
+        result = result + s[i];
+    }
+    return result;
+};
+
+callable split(str s, str sep) -> array {
+    # chiama il metodo split di Python: __py_str.split(s, sep)
+    return __py_str.split(s, sep);
+};
+
+callable join(array parts, str sep) -> str {
+    str result = "";
+    bool first = true;
+    for (auto part : parts) {
+        if (not first) {
+            result = result + sep;
+        }
+        result = result + part;
+        first = false;
+    }
+    return result;
+};
+
+callable to_upper(str s) -> str {
+    return __py_str.upper(s);
+};
+
+callable to_lower(str s) -> str {
+    return __py_str.lower(s);
+};
+
+# 3) Array
+
+callable len(array a) -> int {
+    return __py_len(a);
+};
+
+callable append(array a, auto x) -> void {
+    int n = len(a);
+    a[n] = x;
+};
+
+callable pop(array a) -> auto {
+    # se l’array è vuoto, restituisco null
+    if (len(a) == 0) {
+        return null;
+    }
+    # chiamo il metodo Python list.pop() sul nostro array
+    return a:pop();
+};
+
+callable slice(array a, int start, int end) -> array {
+    array result = [];
+    for (int i = start; i < end and i < len(a); ++:i) {
+        append(result, a[i])
+    }
+    return result;
+};
+
+callable contains(array a, auto x) -> bool {
+    for (auto item : a) {
+        if (item == x) {
+            return true;
+        }
+    }
+    return false;
+};
+
+# 4) Math di base
+
+callable abs(int x) -> int {
+    return __py_abs(x);
+};
+
+callable max(int x, int y) -> int {
+    if (x > y) {
+        return x;
+    } else {
+        return y;
+    }
+};
+
+callable min(int x, int y) -> int {
+    if (x < y) {
+        return x;
+    } else {
+        return y;
+    }
+};
+
+callable clamp(int x, int lo, int hi) -> int {
+    if (x < lo) {
+        return lo;
+    }
+    if (x > hi) {
+        return hi;
+    }
+    return x;
+};
+
+# 5) Utility
+
+callable range(int start, int end) -> array {
+    array result = [];
+    for (int i = start; i < end; ++:i) {
+        append(result, i);
+    }
+    return result;
+};
+
+callable to_str(auto x) -> str {
+    return __py_str(x);
+};

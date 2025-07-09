@@ -6,9 +6,15 @@ class SyntaxError(Exception):
     pass
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, devMode: bool = False):
         self.tokens = list(tokens)
         self.pos = 0
+        self.devMode = devMode
+
+    def debug(self, *args):
+        if self.devMode:
+            # stampa con prefisso per distinguerle
+            print("[PARSER DEBUG]", *args)
 
     def current(self) -> Token:
         if self.pos < len(self.tokens):
@@ -61,6 +67,7 @@ class Parser:
     # -----------------------------------------------------------------------
     def parse_statement(self):
         tok = self.current()
+        self.debug(f"parse_statement @ pos={self.pos}", "current=", self.current())
 
         # ——— 1) import / from import ———
         if tok.type == 'ID' and tok.value == 'import':
@@ -85,7 +92,9 @@ class Parser:
             return self.parse_for()
 
         # ——— 6) assignment: riconosce sia x = … sia obj.prop = … ———
-        if self._is_assignment_lhs():
+        is_assign = self._is_assignment_lhs()
+        self.debug("  _is_assignment_lhs() →", is_assign)
+        if is_assign:
             return self.parse_assignment()
 
         # ——— 6) dichiarazione (se inizia con tipo/modificatore) ———
@@ -106,41 +115,70 @@ class Parser:
     def _is_assignment_lhs(self) -> bool:
         """
         Ritorna True se da current() in avanti posso leggere
-        ID (DOT ID)* seguito da '=' o ':='
+        ID ((DOT ID) | ([expr]))* seguito da '=' o ':='
         """
         idx = self.pos
-        # deve iniziare con un ID
+        # 1) deve iniziare con un ID
         if idx >= len(self.tokens) or self.tokens[idx].type != 'ID':
             return False
         idx += 1
-        # poi zero o più .ID
-        while idx < len(self.tokens) and self.tokens[idx].type == 'DOT':
-            idx += 1
-            if idx >= len(self.tokens) or self.tokens[idx].type != 'ID':
-                return False
-            idx += 1
-        # ora ci aspettiamo COLON o EQUAL
+
+        # 2) poi zero o più di questi segmenti:
+        #   .ID      oppure      [ qualunque espressione ]
+        while idx < len(self.tokens):
+            tok = self.tokens[idx]
+            if tok.type == 'DOT':
+                # .prop
+                idx += 1
+                if idx >= len(self.tokens) or self.tokens[idx].type != 'ID':
+                    return False
+                idx += 1
+            elif tok.type == 'LBRACKET':
+                # [expr]
+                idx += 1
+                depth = 1
+                # skip fino alla parentesi quadra di chiusura corrispondente
+                while idx < len(self.tokens) and depth > 0:
+                    if   self.tokens[idx].type == 'LBRACKET': depth += 1
+                    elif self.tokens[idx].type == 'RBRACKET': depth -= 1
+                    idx += 1
+                if depth != 0:
+                    return False  # parentesi non bilanciate
+            else:
+                break
+
+        # 3) ora ci aspettiamo COLON (per ':=') o EQUAL
         if idx < len(self.tokens) and self.tokens[idx].type in ('COLON', 'EQUAL'):
             return True
         return False
+
 
     # -----------------------------------------------------------------------
     # PARSER DELL’ASSIGNMENT (ID = expr; oppure ID := expr;)
     # -----------------------------------------------------------------------
     def parse_assignment(self):
-        # — 1) parse lvalue: può essere ID o ID(.ID)* → restituiamo un node lvalue
-        # iniziamo con un identifier
-        base_name = self.expect('ID').value
-        lhs_node = {'type': 'identifier', 'name': base_name}
-
-        # gestiamo chain di ".prop"
-        while self.match('DOT'):
-            prop = self.expect('ID').value
-            lhs_node = {
-                'type': 'get_attr',
-                'object': lhs_node,
-                'name': prop
-            }
+        # — 1) parse lvalue: ID seguito da (.ID | [expr])*
+        lhs_node = {'type': 'identifier', 'name': self.expect('ID').value}
+        # gestiamo chain di .prop e [index]
+        while True:
+            if self.match('DOT'):
+                prop = self.expect('ID').value
+                lhs_node = {
+                    'type': 'get_attr',
+                    'object': lhs_node,
+                    'name': prop
+                }
+                continue
+            if self.match('LBRACKET'):
+                idx_expr = self.parse_expression()
+                self.expect('RBRACKET')
+                lhs_node = {
+                    'type': 'index_access',
+                    'object': lhs_node,
+                    'index': idx_expr
+                }
+                continue
+            break
 
         # — 2) consumiamo := oppure =
         if self.match('COLON'):
@@ -285,24 +323,53 @@ class Parser:
         return { 'type':'while', 'condition': cond, 'body': body }
 
     def parse_for(self):
-        # for '(' init_stmt cond ';' update_expr ')' '{' body '}'
-        self.advance()  # 'for'
+        # for '(' (init_stmt cond ';' update_expr) | (for_each) ')' '{' body '}'
+        self.advance()  # consumi 'for'
         self.expect('LPAREN')
-        init = self.parse_statement()       # parse_statement consuma fino al ';'
+
+        # --- 1) filtro for‑each: auto <name> : <expr> )
+        if self.current().type == 'ID' and self.current().value == 'auto' and \
+                self.peek(1).type == 'ID' and self.peek(2).type == 'COLON':
+            # leggiamo 'auto'
+            self.advance()
+            # nome variabile
+            var_name = self.expect('ID').value
+            # i due punti
+            self.expect('COLON')
+            # espressione iterabile (qualsiasi expr)
+            iterable_expr = self.parse_expression()
+            # chiudiamo la parentesi
+            self.expect('RPAREN')
+
+            # corpo del for
+            self.expect('LBRACE')
+            body = self.parse_block()
+
+            return {
+                'type': 'for_each',
+                'var_type': 'auto',
+                'var_name': var_name,
+                'iterable': iterable_expr,
+                'body': body
+            }
+
+        # --- 2) for classico: init; cond; update )
+        init = self.parse_statement()  # consuma fino al ';'
         cond = self.parse_expression()
         self.expect('SEMICOLON')
         update = self.parse_expression()
         self.expect('RPAREN')
+
         self.expect('LBRACE')
         body = self.parse_block()
+
         return {
-            'type':'for',
+            'type': 'for',
             'init': init,
             'condition': cond,
             'update': update,
             'body': body
         }
-
 
     # -----------------------------------------------------------------------
     # PARSER PER dichiarazioni (variabili e funzioni)
@@ -419,7 +486,7 @@ class Parser:
     def parse_block(self):
         stmts = []
         brace = 1
-        self.advance()  # consumiamo '{'
+        # NB: la '{' è già stata consumata da chi chiama parse_block
         while brace > 0:
             tok = self.current()
             if tok.type == 'LBRACE':
@@ -428,6 +495,7 @@ class Parser:
             elif tok.type == 'RBRACE':
                 brace -= 1
                 self.advance()
+                # quando raggiungiamo il matching '}', usciamo
                 if brace == 0:
                     break
             else:
@@ -439,24 +507,60 @@ class Parser:
     # PARSER PER EXPRESSION-LEVEL
     # -----------------------------------------------------------------------
     def parse_expression(self):
-        return self.parse_comparison()
+        # 1) OR
+        return self.parse_or()
+
+    def parse_or(self):
+        node = self.parse_and()
+        # zero o più 'or'
+        while self.current().type == 'ID' and self.current().value == 'or':
+            op_tok = self.current()
+            self.advance()
+            right = self.parse_and()
+            node = {'type':'logic', 'op': op_tok.value, 'left': node, 'right': right}
+        return node
+
+    def parse_and(self):
+        node = self.parse_comparison()
+        # zero o più 'and'
+        while self.current().type == 'ID' and self.current().value == 'and':
+            op_tok = self.current()
+            self.advance()
+            right = self.parse_comparison()
+            node = {'type':'logic', 'op': op_tok.value, 'left': node, 'right': right}
+        return node
+
+    def parse_logic(self):
+        # gestisce and/or tra due comparison
+        node = self.parse_comparison()
+        # finché troviamo 'and' o 'or'
+        while self.current().type == 'ID' and self.current().value in ('and', 'or'):
+            op_tok = self.current()
+            self.advance()
+            # NOTA: qui richiamiamo parse_comparison(), non parse_logic()
+            right = self.parse_comparison()
+            node = {
+                'type': 'logic',
+                'op':   op_tok.value,
+                'left': node,
+                'right': right
+            }
+        return node
+
 
     def parse_comparison(self):
-        node = self.parse_add_sub()
         # confronti: <, >, <=, >=, ==, !=
-        while self.current().type in ('LT','GT','LE','GE','EQEQ','NEQ'):
-            op_tok = self.current()
-            self.advance()
-            right = self.parse_add_sub()
-            node = {'type':'binary_op', 'op': op_tok.value, 'left': node, 'right': right}
-
-        # operatori logici 'and' / 'or'
-        while self.current().type == 'ID' and self.current().value in ('and','or'):
-            op_tok = self.current()
-            self.advance()
-            right = self.parse_add_sub()
-            node = {'type':'logic', 'op': op_tok.value, 'left': node, 'right': right}
-
+        node = self.parse_add_sub()
+        while True:
+            tok = self.current()
+            # riconosciamo sia EQEQ che (= con valore '==') usato dal lexer
+            if tok.type in ('LT','GT','LE','GE') or (tok.type == 'EQ' and tok.value in ('==','!=')) or tok.type == 'NEQ' or tok.type == 'EQEQ':
+                op = tok.value
+                self.advance()
+                right = self.parse_add_sub()
+                node = {'type':'binary_op', 'op': op, 'left': node, 'right': right}
+                continue
+            break
         return node
 
     def parse_add_sub(self):
@@ -489,6 +593,14 @@ class Parser:
         return node
 
     def parse_unary(self):
+        # unario logico: not x
+        if self.current().type == 'ID' and self.current().value == 'not':
+            self.advance()  # consumi 'not'
+            expr = self.parse_unary()
+            return {'type':'unary_logic', 'op':'not', 'expr':expr}
+
+        # pre‐incremento/decremento: ++:x oppure --:x
+
         # pre‐incremento/decremento: ++:x oppure --:x
         if self.match('INCREMENT'):
             self.expect('COLON')
@@ -530,6 +642,12 @@ class Parser:
             self.advance()
             node = {'type':'literal','value': tok.value[1]}
 
+        # ——— BOOLEAN literal ———
+        elif tok.type == 'ID' and tok.value in ('true', 'false'):
+            val = True if tok.value == 'true' else False
+            self.advance()
+            node = {'type':'literal', 'value': val}
+
         # ——— ARRAY literal ———
         elif tok.type == 'LBRACKET':
             self.advance()
@@ -537,6 +655,7 @@ class Parser:
             if self.current().type != 'RBRACKET':
                 while True:
                     elements.append(self.parse_expression())
+                    self.debug(f" parse_primary parse_declaration value: {elements[-1]}")
                     if self.current().type == 'COMMA':
                         self.advance()
                         continue
@@ -556,8 +675,10 @@ class Parser:
                 if self.current().type != 'RBRACE':
                     while True:
                         key_node = self.parse_expression()
+                        self.debug(f" parse_primary parse_declaration value: {key_node}")
                         self.expect('COLON')
                         val_node = self.parse_expression()
+                        self.debug(f" parse_primary parse_declaration value: {val_node}")
                         entries.append((key_node, val_node))
                         if self.match('COMMA'):
                             continue
@@ -579,41 +700,12 @@ class Parser:
                         stmts.append(self.parse_statement())
                 node = {'type':'anonymous_func', 'body': stmts}
 
-        # ——— IDENTIFICATORE / chiamata ———
-        # ——— IDENTIFICATORE / POSSIBILE chiamata ———
+        # ——— IDENTIFICATORE iniziale ——— (potrà poi diventare call, index, prop, ecc.)
         elif tok.type == 'ID':
-            name = tok.value
-            self.advance()
-
-            # se segue '(', è una chiamata di funzione
-            if self.current().type == 'LPAREN':
-                self.advance()  # consumiamo '('
-                args = []
-
-                # finché non troviamo ')', analizziamo un argomento
-                while self.current().type != 'RPAREN':
-                    # caso keyword argument: ID '=' expr
-                    if self.current().type == 'ID' and self.peek(1).type == 'EQUAL':
-                        key = self.current().value
-                        self.advance()        # consumiamo la chiave
-                        self.advance()        # consumiamo '='
-                        val = self.parse_expression()
-                        args.append({'type':'kwarg', 'key': key, 'value': val})
-                    else:
-                        # altrimenti è un argomento posizionale
-                        args.append(self.parse_expression())
-
-                    # se c'è la virgola, consumala e proseguiamo
-                    if self.current().type == 'COMMA':
-                        self.advance()
-                        continue
-                    break
-
-                self.expect('RPAREN')
-                return {'type':'call_callable', 'name': name, 'args': args}
-
-            # altrimenti è un semplice identificatore
-            return {'type':'identifier', 'name': name}
+         name = tok.value
+         self.advance()
+         node = {'type': 'identifier', 'name': name}
+         self.debug("  parse_primary: identifier →", node)
 
 
         # ——— TUPLE literal o grouping ———
@@ -658,10 +750,50 @@ class Parser:
             raise SyntaxError(f"Unexpected token {tok} in expression")
 
         # -----------------------------
-        # member‑access / method‑call chaining
+        # member‑access / method‑call / indexing chaining
         # -----------------------------
         while True:
-            # 1) dot access / method:   object.prop   oppure   object.method(args)
+            # 0) array‑indexing: object[expr]
+            if self.match('LBRACKET'):
+                index_expr = self.parse_expression()
+                self.debug(f" parse_primary parse_declaration value: {index_expr}")
+                self.expect('RBRACKET')
+                node = {
+                    'type': 'index_access',
+                    'object': node,
+                    'index': index_expr
+                }
+                continue
+
+            # 1) function‐call: obj(args)  (also covers f(x))
+            if self.match('LPAREN'):
+                args = []
+                while self.current().type != 'RPAREN':
+                    # keyword arg?
+                    if self.current().type == 'ID' and self.peek(1).type == 'EQUAL':
+                        key = self.current().value
+                        self.advance(); self.advance()  # key and '='
+                        val = self.parse_expression()
+                        self.debug(f" parse_primary parse_declaration value: {val}")
+                        args.append({'type':'kwarg', 'key': key, 'value': val})
+                    else:
+                        args.append(self.parse_expression())
+                        self.debug(f" parse_primary parse_declaration value: {args[-1]}")
+                    if self.match('COMMA'):
+                        continue
+                    break
+                self.expect('RPAREN')
+                # distinguish method_call vs call_callable on bare identifier
+                if node['type'] == 'prop_access' or node['type'] == 'colon_prop_access':
+                    # handled in their own branches below
+                    # fall through to let DOT/COLON logic wrap this call
+                    pass
+                else:
+                    # bare call f(x)
+                    node = {'type':'call_callable', 'name': node['name'], 'args': args}
+                    continue
+
+            # 2) dot access / method:   object.prop   oppure   object.method(args)
             if self.match('DOT'):
                 prop = self.expect('ID').value
                 # se segue '(', è un metodo
@@ -669,6 +801,7 @@ class Parser:
                     args = []
                     while self.current().type != 'RPAREN':
                         args.append(self.parse_expression())
+                        self.debug(f" parse_primary parse_declaration value: {args[-1]}")
                         if not self.match('COMMA'):
                             break
                     self.expect('RPAREN')
@@ -687,13 +820,14 @@ class Parser:
                     }
                 continue
 
-            # 2) colon‑access / colon‑method: object:prop  oppure  object:method(args)
+            # 3) colon‑access / colon‑method: object:prop  oppure  object:method(args)
             if self.match('COLON'):
                 member = self.expect('ID').value
                 if self.match('LPAREN'):
                     args = []
                     while self.current().type != 'RPAREN':
                         args.append(self.parse_expression())
+                        self.debug(f" parse_primary parse_declaration value: {args[-1]}")
                         if not self.match('COMMA'):
                             break
                     self.expect('RPAREN')

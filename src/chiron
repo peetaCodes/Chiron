@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys,json
+import sys
 from chiron_runtime.lexer import Lexer
 from chiron_runtime.parser import Parser
 from chiron_runtime.interpreter import Interpreter, Environment
@@ -7,11 +7,13 @@ from chiron_runtime.interpreter import Interpreter, Environment
 def run_file(path):
     with open(path) as f:
         code = f.read()
-    tokens = Lexer(code).tokenize()
 
+    #print("Main file's code: ", code)
+
+    tokens = Lexer(code).tokenize()
     ast = Parser(tokens).parse()
 
-    print(json.dumps(ast, indent=2))
+    #print("Main file's AST:", json.dumps(ast, indent=2))
 
     interpreter = Interpreter()
     interpreter.interpret(ast)

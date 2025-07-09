@@ -10,13 +10,17 @@ def load_chiron_module(path: str) -> Environment:
     with open(path, 'r', encoding='utf‑8') as f:
         source = f.read()
 
+    intern:bool = source.startswith("# !ISF")
+
+    #print("Loaded file's code:", source)
+
     tokens = Lexer(source).tokenize()   # dal tuo lexer
     ast    = Parser(tokens).parse()     # dal tuo parser
 
-    print("Loader's AST: " + str(ast))
+    #print("Loaded file's AST:", json.dumps(ast, indent=2))
 
     mod_env = Environment()             # namespace del modulo
-    interp  = Interpreter()
+    interp  = Interpreter(intern)
     # Evitiamo di eseguire main(): vogliamo solo caricare definizioni
 
     # 1) Pre-registriamo tutte le dichiarazioni_callable nel mod_env.func_decls

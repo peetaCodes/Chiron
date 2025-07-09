@@ -1,12 +1,12 @@
 > [!WARNING] 
-> Questo è il repository per la versione di chiron **interpretata in python**.  
+> Questo è il repository per la versione di chiron **interpretata in python** (`pyron`).  
 > Per visualizzare la versione interpretata in C++ oppure la versione compilata, cambia repository
 
 > [!NOTE]
-> Questa guida è molto superficiale tratta solo gli aspetti generici del linguaggio
-> Per una documentazione completa visitare i manuali sotto la cartella `Manuals`  
+> Questa guida tratta solo l'uso pratico dell'interprete chiron
+> **Per una documentazione sulla sintassi** completa visitare i manuali sotto **la cartella `Manuals`**  
 > Nella cartella troverai più manuali, ma sono solo versioni in formati diversi.
-> **Il contenuto è identico**
+> Il contenuto è identico
 
 # Installazione
 

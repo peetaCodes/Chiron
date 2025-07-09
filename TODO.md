@@ -1,0 +1,1 @@
+Update the manual as it's horribly out of date with the most recent updates
